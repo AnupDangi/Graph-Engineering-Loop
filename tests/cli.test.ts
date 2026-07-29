@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -89,6 +89,81 @@ test("CLI runs the fake example through the generic stdio adapter", async () => 
   assert.match(integrationResult.summary, /stdio example adapter/);
 });
 
+test("CLI runs a graph through the file-backed interactive adapter", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-interactive-"));
+  const graphPath = join(projectRoot, "loops.json");
+  await writeFile(graphPath, JSON.stringify({
+    version: 1,
+    name: "interactive-test",
+    goal: "Prove current-session execution.",
+    defaults: { maxIterations: 2, maxConcurrentLoops: 1 },
+    loops: [
+      {
+        id: "worker",
+        objective: "Create the interactive completion file.",
+        dependsOn: [],
+        completionConditions: [
+          { type: "fileExists", path: "interactive.txt" }
+        ]
+      }
+    ]
+  }));
+
+  const child = spawn(process.execPath, [
+    "--conditions",
+    "development",
+    "--import",
+    "tsx",
+    cliPath,
+    "run",
+    graphPath,
+    "--adapter",
+    "interactive",
+    "--project-root",
+    projectRoot
+  ], {
+    cwd: repoRoot,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString("utf8");
+  });
+  child.stderr.on("data", (chunk: Buffer) => {
+    stderr += chunk.toString("utf8");
+  });
+
+  const currentPath = join(projectRoot, ".loopgraph/bridge/current.json");
+  const packet = await waitForJson<{ requestId: string }>(currentPath);
+  await writeFile(join(projectRoot, "interactive.txt"), "interactive ok\n");
+  await writeFile(
+    join(projectRoot, `.loopgraph/bridge/responses/${packet.requestId}.json`),
+    JSON.stringify({
+      status: "complete",
+      summary: "Created and verified interactive.txt.",
+      completedTasks: [],
+      remainingWork: [],
+      changedFiles: ["interactive.txt"],
+      commandsRun: [],
+      completionEvidence: [],
+      handoff: [],
+      blockedReason: null
+    })
+  );
+
+  const code = await new Promise<number>((resolvePromise) => {
+    child.on("close", (exitCode) => resolvePromise(exitCode ?? 1));
+  });
+  assert.equal(code, 0, stderr);
+  assert.match(stdout, /LoopGraph completed/);
+
+  const state = JSON.parse(await readFile(join(projectRoot, ".loopgraph/state.json"), "utf8")) as {
+    status: string;
+  };
+  assert.equal(state.status, "completed");
+});
+
 function runCli(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolvePromise) => {
     const child = spawn(process.execPath, ["--conditions", "development", "--import", "tsx", cliPath, ...args], {
@@ -109,4 +184,18 @@ function runCli(args: string[]): Promise<{ code: number; stdout: string; stderr:
       resolvePromise({ code: code ?? 1, stdout, stderr });
     });
   });
+}
+
+async function waitForJson<T>(path: string): Promise<T> {
+  const deadline = Date.now() + 10_000;
+
+  while (Date.now() < deadline) {
+    try {
+      return JSON.parse(await readFile(path, "utf8")) as T;
+    } catch {
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+    }
+  }
+
+  throw new Error(`Timed out waiting for ${path}`);
 }

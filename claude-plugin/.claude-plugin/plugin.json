@@ -1,7 +1,7 @@
 {
   "name": "graph-engineering-loop",
   "description": "Run dependency-aware completion-driven engineering loop graphs from Claude Code.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Anup Dangi"
   },

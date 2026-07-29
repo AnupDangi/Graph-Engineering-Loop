@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- Made the Claude Code plugin self-contained with a vendored CLI/core runtime.
+- Added a file-backed interactive adapter so the active Claude Code session executes loops without nested `claude -p` processes.
+- Added the plugin bridge contract for starting runs, receiving work packets, submitting structured evidence, and reading status.
+- Updated plugin skills to use `${CLAUDE_PLUGIN_ROOT}` and an explicit project root.
+- Added `SessionStart` and guarded `Stop` hooks for active-run recovery.
+- Added isolated plugin smoke coverage for validation, execution, hooks, persistence, and cancellation.
+- Added an optional real namespaced-skill smoke with a `$2.00` budget cap.
+
 ## 0.1.0
 
 - Initial LoopGraph runtime package.

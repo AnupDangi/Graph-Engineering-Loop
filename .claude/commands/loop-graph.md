@@ -1,17 +1,15 @@
 # Loop Graph
 
-Run Graph Engineering Loop for the current project.
+Run Graph Engineering Loop for the current project without spawning nested
+Claude Code workers.
+
+Read and follow `claude-plugin/skills/loop-graph/SKILL.md`. In its commands,
+replace `${CLAUDE_PLUGIN_ROOT}` with `${CLAUDE_PROJECT_DIR}/claude-plugin`.
+Build the bundled runtime first:
 
 ```bash
-npm run build
-node packages/cli/dist/cli.js run "$ARGUMENTS" --adapter claude --claude-permission-mode acceptEdits
+npm run build:plugin
 ```
 
-If `$ARGUMENTS` is empty, run:
-
-```bash
-npm run build
-node packages/cli/dist/cli.js run --adapter claude --claude-permission-mode acceptEdits
-```
-
-Report the graph summary, status, and `.loopgraph/results/` path.
+Use `$ARGUMENTS` as the prompt, requirements path, or graph input described by
+the skill.

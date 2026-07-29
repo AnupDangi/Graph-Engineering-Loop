@@ -9,7 +9,7 @@ The core format and runtime are harness-neutral. The first real harness target i
 
 ## Status
 
-This is an early `0.1.0` implementation. It includes:
+This is an early `0.2.0` implementation. It includes:
 
 - Version 1 graph validation.
 - Deterministic dependency scheduling.
@@ -19,15 +19,17 @@ This is an early `0.1.0` implementation. It includes:
 - CLI commands: `run`, `cancel`, and `validate`.
 - Fake adapter for real local smoke tests.
 - Claude Code headless adapter using `claude -p`.
+- Claude Code interactive adapter that delegates loop work to the active session without nested Claude processes.
 - Generic stdio adapter for any harness wrapper that can read JSON from stdin and write JSON to stdout.
-- Claude Code plugin and marketplace skeleton.
+- Self-contained Claude Code plugin with a vendored runtime, lifecycle hooks, and marketplace metadata.
 
 Readiness today:
 
 - Core runtime, fake adapter, and stdio adapter are covered by automated tests.
 - Claude adapter is locally smoke-verified with `npm run smoke:claude`.
-- Claude plugin installation is local-first until the npm package is published.
-- Marketplace/npm installation is not production-ready until a package is published and install is tested from the registry.
+- The plugin artifact is tested from an isolated temp copy with `npm run smoke:plugin`; it does not require an npm package or global `loopgraph`.
+- The optional real namespaced-skill check is `npm run smoke:plugin:claude` and requires Claude Code authentication.
+- Registry publication is still unverified for standalone npm/NPX installation.
 
 ## Install
 
@@ -107,7 +109,7 @@ This repo also includes project-local Claude commands for development:
 For local plugin testing:
 
 ```bash
-npm run build
+npm run build:plugin
 claude --plugin-dir ./claude-plugin
 ```
 
@@ -126,6 +128,23 @@ For GitHub marketplace installation after this repository is pushed:
 ```
 
 Claude Code plugins are namespaced by plugin name, so the skills are intentionally exposed as `/graph-engineering-loop:loop-graph` and `/graph-engineering-loop:cancel-loop-graph`.
+
+The installed skill uses the active Claude Code session as the loop worker. A
+background supervisor publishes one request at a time under
+`.loopgraph/bridge/`; the skill submits structured evidence back to the runtime.
+This avoids recursive Claude Code launches. Direct CLI and CI usage can still
+select `--adapter claude` to use headless `claude -p` workers.
+
+Release checks:
+
+```bash
+npm run smoke:plugin
+npm run smoke:plugin:claude
+```
+
+The first command is deterministic and verifies an isolated, self-contained
+plugin plus hooks and cancellation. The second invokes the real namespaced skill,
+may use Claude credits, and is capped at `$2.00`.
 
 ## Generic Harness Adapter
 
@@ -240,11 +259,12 @@ GitHub Packages requires scoped npm package names. See [GITHUB_PACKAGES.md](./GI
 ## Current Limitations
 
 - Resume invalidation is minimal.
-- The Claude adapter uses headless CLI execution and runs loops sequentially for safety.
+- A killed interactive supervisor does not yet rehydrate an interrupted loop; durable state and the outstanding bridge packet remain for diagnosis.
+- The headless Claude adapter runs loops sequentially for safety.
 - The stdio adapter runs loops sequentially because arbitrary harness commands may not be repository-concurrency safe.
 - Prompt-to-graph compilation is Claude-backed only when `--adapter claude` is selected; fake/stdio keep a deterministic fallback template.
 - No automatic Git worktree isolation or merge handling yet.
-- Registry install is unverified until `graph-engineering-loop` and `graph-engineering-loop-core` are published.
+- Registry install remains unverified until `graph-engineering-loop` and `graph-engineering-loop-core` are published.
 
 ## References
 

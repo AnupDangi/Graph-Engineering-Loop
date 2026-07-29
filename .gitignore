@@ -6,6 +6,10 @@ coverage/
 tmp/
 .DS_Store
 
+# The Claude Code marketplace artifact intentionally vendors its runtime.
+!claude-plugin/vendor/
+!claude-plugin/vendor/**
+
 # Never commit local npm credentials.
 .npmrc.local
 

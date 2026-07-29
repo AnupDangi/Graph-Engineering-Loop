@@ -16,6 +16,7 @@ import {
 } from "graph-engineering-loop-core";
 import { ClaudeHeadlessAdapter } from "./adapters/claude-adapter.js";
 import { FakeAdapter } from "./adapters/fake-adapter.js";
+import { InteractiveAdapter } from "./adapters/interactive-adapter.js";
 import { StdioAdapter } from "./adapters/stdio-adapter.js";
 
 const EXIT_SUCCESS = 0;
@@ -28,7 +29,7 @@ interface CliOptions {
   command?: string;
   input?: string;
   file?: string;
-  adapter: "fake" | "claude" | "stdio";
+  adapter: "fake" | "claude" | "interactive" | "stdio";
   adapterCommand?: string;
   claudePath?: string;
   claudePermissionMode?: string;
@@ -64,7 +65,7 @@ async function main(args: string[]): Promise<number> {
     return cancelGraph(options);
   }
 
-  console.error("Usage: loopgraph <run|cancel|validate> [input] [--adapter fake|claude|stdio]");
+  console.error("Usage: loopgraph <run|cancel|validate> [input] [--adapter fake|claude|interactive|stdio]");
   return EXIT_INVALID_ARGUMENTS;
 }
 
@@ -322,6 +323,10 @@ function createAdapter(name: CliOptions["adapter"], options: CliOptions): Harnes
     return new StdioAdapter({ command: options.adapterCommand });
   }
 
+  if (name === "interactive") {
+    return new InteractiveAdapter();
+  }
+
   return new FakeAdapter();
 }
 
@@ -344,8 +349,8 @@ function parseArgs(args: string[]): CliOptions {
         break;
       case "--adapter": {
         const adapter = requireValue(args, ++index, "--adapter");
-        if (adapter !== "fake" && adapter !== "claude" && adapter !== "stdio") {
-          throw new Error("--adapter must be 'fake', 'claude', or 'stdio'");
+        if (adapter !== "fake" && adapter !== "claude" && adapter !== "interactive" && adapter !== "stdio") {
+          throw new Error("--adapter must be 'fake', 'claude', 'interactive', or 'stdio'");
         }
         options.adapter = adapter;
         break;

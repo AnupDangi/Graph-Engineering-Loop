@@ -7,19 +7,39 @@ This plugin exposes Graph Engineering Loop to Claude Code as namespaced skills:
 /graph-engineering-loop:cancel-loop-graph
 ```
 
+The plugin is self-contained. Its `vendor/` directory contains the built CLI and
+core runtime, so marketplace installation does not require npm publication or a
+global `loopgraph` binary.
+
 For local testing:
 
 ```bash
-npm run build
+npm run build:plugin
 claude --plugin-dir ./claude-plugin
 ```
 
-The skills invoke the npm CLI. Install the CLI first for reliable offline use:
+The loop skill uses the current Claude Code session as the worker:
+
+1. It creates or loads `.loopgraph/loops.json`.
+2. The bundled supervisor starts with `--adapter interactive`.
+3. The runtime publishes one work packet under `.loopgraph/bridge/`.
+4. The active session implements the loop and submits structured evidence.
+5. The runtime evaluates completion, persists results, and unlocks dependencies.
+
+No nested `claude -p` process is started by the plugin. The separate headless
+adapter remains available for direct CLI and CI use.
+
+Lifecycle hooks add concise active-run context on session start and give Claude
+one guarded continuation when it tries to stop with a work packet still pending.
+They never restart or replay the graph.
+
+Verification:
 
 ```bash
-npm install -g graph-engineering-loop
+npm run smoke:plugin
+npm run smoke:plugin:claude
 ```
 
-The plugin layout follows the current Claude Code plugin model: `.claude-plugin/plugin.json` contains metadata, and skills live under `skills/<name>/SKILL.md`.
-
-The bundled `bin/loopgraph` is local-first: inside this repository it runs `packages/cli/dist/cli.js`, and after publication it falls back to a globally installed or NPX package.
+`smoke:plugin` validates and runs an isolated copy, including hooks and
+cancellation. `smoke:plugin:claude` invokes the real namespaced skill, requires
+Claude Code authentication, may use credits, and is capped at `$2.00`.

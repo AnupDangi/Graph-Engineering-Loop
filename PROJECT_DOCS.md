@@ -116,7 +116,10 @@ Current readiness stance:
 
 - Core, fake, and stdio paths are automated-test covered.
 - Claude adapter has a fresh-temp-project smoke test via `npm run smoke:claude`; require it to pass before release claims.
-- Plugin marketplace install remains experimental until the npm package is published or the plugin ships a built CLI artifact.
+- The Claude Code plugin uses the active session through a file-backed interactive bridge; it must not spawn nested `claude -p` workers.
+- The plugin ships a built CLI/core artifact under `claude-plugin/vendor/` and does not depend on npm or a global binary at runtime.
+- `npm run smoke:plugin` must pass against an isolated copy of the plugin before release.
+- `npm run smoke:plugin:claude` is the optional paid end-to-end namespaced-skill check and requires an authenticated Claude Code session.
 
 ## Recommended Repository Structure
 
@@ -610,17 +613,30 @@ claude-plugin/
     hooks.json
   bin/
     loopgraph
+    loopgraph-session
   scripts/
+    session-bridge.mjs
+    session-hook.mjs
+  vendor/
+    cli/
+    node_modules/graph-engineering-loop-core/
 ```
 
 Do not attach a global Stop hook that blindly repeats the whole graph prompt. The runtime owns graph progression. Hooks may preserve state, add small resume context, or handle cancellation, but only after checking whether an active run exists.
 
-The first implementation should use the simplest reliable Claude Code execution mechanism available:
+Claude Code has two explicit execution modes:
 
-- One LoopGraph supervisor process.
-- One execution request per active loop.
-- Parallel execution only where the environment safely supports it.
-- Persisted loop output after every iteration.
+- Inside an interactive Claude Code plugin session, use `--adapter interactive`. One background LoopGraph supervisor publishes a work packet under `.loopgraph/bridge/`; the active session performs the work and submits a structured `LoopExecutionResult`.
+- Outside Claude Code or in CI, use `--adapter claude`. The headless adapter may spawn `claude -p` because there is no active interactive session to reuse.
+
+The interactive bridge must:
+
+- Keep the scheduler and completion evaluator in the runtime.
+- Run one loop at a time because the active session is a single worker.
+- Use atomic request and response files.
+- Pin every operation to an explicit project root.
+- Persist normal state, events, and loop results after every iteration.
+- Reject malformed submissions before releasing the supervisor.
 
 Do not build a distributed daemon in version 0.1.
 
@@ -730,7 +746,8 @@ Required coverage:
 - Atomic writes, corrupted state recovery, stale locks, resume, graph hash mismatch, and idempotent cancellation.
 - Fake adapter tests for the full runtime without invoking Claude Code.
 - Integration test where one loop creates a file, a command verifies it, and a dependent loop unlocks.
-- Optional Claude adapter smoke test for plugin discovery, `/loop-graph`, graph generation, dependency unlock, cancellation, and persisted results.
+- Required isolated plugin smoke for plugin validation, bundled runtime execution, bridge requests, hook context, cancellation, and persisted results.
+- Optional paid Claude smoke for namespaced skill discovery, active-session execution, graph generation, dependency unlock, and persisted results.
 
 Do not require paid model calls for normal unit tests.
 

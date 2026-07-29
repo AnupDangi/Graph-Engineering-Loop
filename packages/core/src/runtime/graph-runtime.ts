@@ -163,18 +163,32 @@ export class GraphRuntime {
         iteration: state.currentIteration
       });
 
-      const adapterResult = await this.adapter.executeLoop(
-        {
-          graph: this.graph,
-          loop,
-          dependencyResults: this.getDependencyResults(loop),
-          currentIteration: state.currentIteration,
-          maxIterations,
-          previousResult,
-          projectRoot: this.projectRoot
-        },
-        signal
-      );
+      let adapterResult: LoopExecutionResult;
+      try {
+        adapterResult = await this.adapter.executeLoop(
+          {
+            graph: this.graph,
+            loop,
+            dependencyResults: this.getDependencyResults(loop),
+            currentIteration: state.currentIteration,
+            maxIterations,
+            previousResult,
+            projectRoot: this.projectRoot
+          },
+          signal
+        );
+      } catch (error) {
+        if (signal.aborted) {
+          this.cancelLoop(loop, state);
+          return;
+        }
+        throw error;
+      }
+
+      if (signal.aborted) {
+        this.cancelLoop(loop, state);
+        return;
+      }
 
       previousResult = adapterResult;
 
@@ -344,6 +358,21 @@ export class GraphRuntime {
         this.results.set(loopId, state.result);
       }
     }
+  }
+
+  private cancelLoop(loop: LoopDefinition, state: LoopRuntimeState): void {
+    state.status = "cancelled";
+    state.result = {
+      loopId: loop.id,
+      status: "cancelled",
+      iterationsUsed: state.currentIteration,
+      summary: "Loop was cancelled.",
+      changedFiles: [],
+      verification: [],
+      handoff: [],
+      blockedReason: "Cancelled"
+    };
+    this.results.set(loop.id, state.result);
   }
 
   private async cancelRunning(running: Map<string, Promise<void>>): Promise<void> {
