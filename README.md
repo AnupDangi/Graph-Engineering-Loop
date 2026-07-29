@@ -1,6 +1,7 @@
 # Graph Engineering Loop
 
 Graph Engineering Loop is a portable runtime for dependency-aware, completion-driven software workstreams.
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/5d1d6201-ba51-48f8-9eb3-88c77ecff075" />
 
 It turns a `loops.json` graph, requirements file, or prompt into durable loop execution state under `.loopgraph/`. Each loop is a substantial workstream that can use a harness adapter, run commands, touch multiple files, iterate, and complete only when its completion conditions are verified.
 
