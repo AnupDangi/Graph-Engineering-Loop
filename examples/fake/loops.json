@@ -1,0 +1,99 @@
+{
+  "$schema": "https://loopgraph.dev/schemas/loops.v1.json",
+  "version": 1,
+  "name": "fake-vertical-slice",
+  "goal": "Demonstrate foundation, backend, frontend, and integration scheduling with deterministic fake writes.",
+  "defaults": {
+    "maxIterations": 3,
+    "maxConcurrentLoops": 2
+  },
+  "loops": [
+    {
+      "id": "foundation",
+      "title": "Foundation",
+      "objective": "Create the foundation artifact.",
+      "dependsOn": [],
+      "completionConditions": [
+        {
+          "type": "fileExists",
+          "path": "tmp/foundation.txt"
+        }
+      ],
+      "metadata": {
+        "fakeWrites": [
+          {
+            "path": "tmp/foundation.txt",
+            "content": "foundation complete\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "backend",
+      "title": "Backend",
+      "objective": "Create the backend artifact after foundation completes.",
+      "dependsOn": [
+        "foundation"
+      ],
+      "completionConditions": [
+        {
+          "type": "fileExists",
+          "path": "tmp/backend.txt"
+        }
+      ],
+      "metadata": {
+        "fakeWrites": [
+          {
+            "path": "tmp/backend.txt",
+            "content": "backend complete\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "frontend",
+      "title": "Frontend",
+      "objective": "Create the frontend artifact after foundation completes.",
+      "dependsOn": [
+        "foundation"
+      ],
+      "completionConditions": [
+        {
+          "type": "fileExists",
+          "path": "tmp/frontend.txt"
+        }
+      ],
+      "metadata": {
+        "fakeWrites": [
+          {
+            "path": "tmp/frontend.txt",
+            "content": "frontend complete\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "integration",
+      "title": "Integration",
+      "objective": "Create the integration artifact after backend and frontend complete.",
+      "dependsOn": [
+        "backend",
+        "frontend"
+      ],
+      "completionConditions": [
+        {
+          "type": "fileExists",
+          "path": "tmp/integration.txt"
+        }
+      ],
+      "metadata": {
+        "fakeWrites": [
+          {
+            "path": "tmp/integration.txt",
+            "content": "integration complete\n"
+          }
+        ]
+      }
+    }
+  ]
+}

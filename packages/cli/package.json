@@ -1,0 +1,31 @@
+{
+  "name": "graph-engineering-loop",
+  "version": "0.1.0",
+  "description": "CLI for dependency-aware completion-driven engineering loop graphs.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Anup Dangi",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnupDangi/Graph-Engineering-Loop.git",
+    "directory": "packages/cli"
+  },
+  "main": "./dist/cli.js",
+  "types": "./dist/cli.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "graph-engineering-loop": "./dist/cli.js",
+    "loopgraph": "./dist/cli.js"
+  },
+  "dependencies": {
+    "graph-engineering-loop-core": "0.1.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false"
+  }
+}

@@ -1,0 +1,190 @@
+# Graph Engineering Loop
+
+Graph Engineering Loop is a portable runtime for dependency-aware, completion-driven software workstreams.
+
+It turns a `loops.json` graph, requirements file, or prompt into durable loop execution state under `.loopgraph/`. Each loop is a substantial workstream that can use a harness adapter, run commands, touch multiple files, iterate, and complete only when its completion conditions are verified.
+
+The core format and runtime are harness-neutral. The first real harness target is Claude Code, with a deterministic fake adapter for local testing.
+
+## Status
+
+This is an early `0.1.0` implementation. It includes:
+
+- Version 1 graph validation.
+- Deterministic dependency scheduling.
+- Completion evaluators for commands, file existence, file contents, assertions, and aggregate `all`.
+- Atomic `.loopgraph/state.json` writes.
+- `.loopgraph/lock.json`, `.loopgraph/events.jsonl`, and `.loopgraph/results/`.
+- CLI commands: `run`, `cancel`, and `validate`.
+- Fake adapter for real local smoke tests.
+- Claude Code headless adapter using `claude -p`.
+- Claude Code plugin and marketplace skeleton.
+
+## Install
+
+After npm publication:
+
+```bash
+npm install -g graph-engineering-loop graph-engineering-loop-core
+```
+
+Or run through NPX:
+
+```bash
+npx graph-engineering-loop run examples/fake/loops.json --adapter fake
+```
+
+During local development:
+
+```bash
+npm install
+npm test
+npm run typecheck
+npm run build
+```
+
+## Quick Start
+
+Validate a graph:
+
+```bash
+npx graph-engineering-loop validate examples/fake/loops.json
+```
+
+Run the fake vertical slice:
+
+```bash
+npx graph-engineering-loop run examples/fake/loops.json --adapter fake
+```
+
+Run with Claude Code headless:
+
+```bash
+npx graph-engineering-loop run .loopgraph/loops.json --adapter claude
+```
+
+Cancel the active project run:
+
+```bash
+npx graph-engineering-loop cancel
+```
+
+## Claude Code Plugin
+
+For local plugin testing:
+
+```bash
+claude --plugin-dir ./claude-plugin
+```
+
+Then use:
+
+```text
+/graph-engineering-loop:loop-graph <prompt-or-path>
+/graph-engineering-loop:cancel-loop-graph
+```
+
+For GitHub marketplace installation after this repository is pushed:
+
+```text
+/plugin marketplace add AnupDangi/Graph-Engineering-Loop
+/plugin install graph-engineering-loop@graph-engineering-loop-marketplace
+```
+
+Claude Code plugins are namespaced by plugin name, so the skills are intentionally exposed as `/graph-engineering-loop:loop-graph` and `/graph-engineering-loop:cancel-loop-graph`.
+
+## `loops.json`
+
+Example:
+
+```json
+{
+  "$schema": "https://loopgraph.dev/schemas/loops.v1.json",
+  "version": 1,
+  "name": "fake-vertical-slice",
+  "goal": "Demonstrate dependency-aware loop scheduling.",
+  "defaults": {
+    "maxIterations": 3,
+    "maxConcurrentLoops": 2
+  },
+  "loops": [
+    {
+      "id": "foundation",
+      "objective": "Create the foundation artifact.",
+      "dependsOn": [],
+      "completionConditions": [
+        {
+          "type": "fileExists",
+          "path": "tmp/foundation.txt"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Required graph fields:
+
+- `version`
+- `name`
+- `goal`
+- `loops`
+
+Required loop fields:
+
+- `id`
+- `objective`
+- `dependsOn`
+- `completionConditions`
+
+## Completion Conditions
+
+Supported in version 1:
+
+- `command`
+- `fileExists`
+- `fileContains`
+- `assertion`
+- `all`
+
+The core independently evaluates deterministic conditions. Assertion conditions require concrete adapter evidence.
+
+## Durable State
+
+Runtime files:
+
+```text
+.loopgraph/
+  loops.json
+  state.json
+  lock.json
+  events.jsonl
+  results/
+    <loop-id>.json
+    <loop-id>.md
+```
+
+Commit `.loopgraph/loops.json` when it represents shared project intent. Do not commit mutable runtime files.
+
+## Package Names
+
+The initial intended npm packages are:
+
+- `graph-engineering-loop`
+- `graph-engineering-loop-core`
+
+Confirm these before publishing if you prefer scoped names.
+
+## Current Limitations
+
+- Resume invalidation is minimal.
+- The Claude adapter uses headless CLI execution and runs loops sequentially for safety.
+- Prompt-to-graph compilation is deterministic and simple unless the Claude adapter is extended to compile graphs through the harness.
+- No automatic Git worktree isolation or merge handling yet.
+- The CLI package currently depends on the separately published core package.
+
+## References
+
+- [Claude Code plugin docs](https://code.claude.com/docs/en/plugins)
+- [Claude Code headless docs](https://code.claude.com/docs/en/headless)
+- [Claude Code plugin marketplace docs](https://code.claude.com/docs/en/plugin-marketplaces)

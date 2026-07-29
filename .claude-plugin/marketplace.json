@@ -1,0 +1,27 @@
+{
+  "name": "graph-engineering-loop-marketplace",
+  "owner": {
+    "name": "Anup Dangi"
+  },
+  "description": "Claude Code marketplace for Graph Engineering Loop.",
+  "version": "0.1.0",
+  "plugins": [
+    {
+      "name": "graph-engineering-loop",
+      "source": "./claude-plugin",
+      "description": "Run dependency-aware completion-driven engineering loop graphs.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Anup Dangi"
+      },
+      "license": "MIT",
+      "keywords": [
+        "loops",
+        "graph",
+        "agents",
+        "orchestration",
+        "claude-code"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.npm-cache/
+.DS_Store
+
+.loopgraph/state.json
+.loopgraph/lock.json
+.loopgraph/events.jsonl
+.loopgraph/results/
