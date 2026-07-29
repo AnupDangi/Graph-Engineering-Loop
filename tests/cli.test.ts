@@ -10,6 +10,17 @@ const cliPath = join(repoRoot, "packages/cli/src/cli.ts");
 const examplePath = join(repoRoot, "examples/fake/loops.json");
 const stdioAdapterPath = join(repoRoot, "examples/stdio-adapter.mjs");
 
+test("CLI exposes production help and version entry points", async () => {
+  const help = await runCli(["--help"]);
+  assert.equal(help.code, 0, help.stderr);
+  assert.match(help.stdout, /Usage:/);
+  assert.match(help.stdout, /graph-engineering-loop run/);
+
+  const version = await runCli(["--version"]);
+  assert.equal(version.code, 0, version.stderr);
+  assert.match(version.stdout, /graph-engineering-loop 0\.2\.1/);
+});
+
 test("CLI validates and runs the fake example with durable results", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-cli-"));
   const graphPath = join(projectRoot, "loops.json");

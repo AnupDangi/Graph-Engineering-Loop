@@ -1,6 +1,6 @@
 {
   "name": "graph-engineering-loop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "CLI for dependency-aware completion-driven engineering loop graphs.",
   "type": "module",
   "license": "MIT",
@@ -14,6 +14,9 @@
     "access": "public",
     "registry": "https://registry.npmjs.org"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "main": "./dist/cli.js",
   "types": "./dist/cli.d.ts",
   "files": [
@@ -26,7 +29,7 @@
     "loopgraph": "./dist/cli.js"
   },
   "dependencies": {
-    "graph-engineering-loop-core": "0.2.0"
+    "graph-engineering-loop-core": "0.2.1"
   },
   "scripts": {
     "build": "tsc -b",

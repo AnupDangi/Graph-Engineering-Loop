@@ -12,7 +12,7 @@ if (tag === undefined || tag.length === 0) {
 }
 
 if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag)) {
-  console.error(`Tag must look like v0.2.0, got: ${tag}`);
+  console.error(`Tag must look like vX.Y.Z, got: ${tag}`);
   process.exit(1);
 }
 
@@ -46,13 +46,14 @@ for (const relativePath of paths) {
 }
 
 const cli = JSON.parse(await readFile(resolve(root, "packages/cli/package.json"), "utf8"));
+const core = JSON.parse(await readFile(resolve(root, "packages/core/package.json"), "utf8"));
 const rootPkg = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 
 if (rootPkg.private !== true) {
   throw new Error("Root package.json must be private:true so the monorepo is never published.");
 }
 
-if (rootPkg.name === "graph-engineering-loop" || rootPkg.name === "graph-engineering-loop-repo") {
+if (rootPkg.name === cli.name || rootPkg.name === core.name) {
   throw new Error(
     `Root package name '${rootPkg.name}' collides with a publishable package. Keep the monorepo private and named differently.`
   );
@@ -65,6 +66,22 @@ if (cli.name !== "graph-engineering-loop") {
 const coreDep = cli.dependencies?.["graph-engineering-loop-core"];
 if (coreDep !== expected) {
   throw new Error(`CLI depends on graph-engineering-loop-core@${coreDep}, expected ${expected}`);
+}
+
+if (cli.bin?.["graph-engineering-loop"] !== "./dist/cli.js" || cli.bin?.loopgraph !== "./dist/cli.js") {
+  throw new Error("CLI package must expose graph-engineering-loop and loopgraph from ./dist/cli.js");
+}
+
+for (const [label, pkg] of [["CLI", cli], ["core", core]]) {
+  if (pkg.private === true) {
+    throw new Error(`${label} package must be publishable.`);
+  }
+  if (pkg.publishConfig?.registry !== "https://registry.npmjs.org") {
+    throw new Error(`${label} package must publish explicitly to https://registry.npmjs.org`);
+  }
+  if (!Array.isArray(pkg.files) || !pkg.files.includes("dist")) {
+    throw new Error(`${label} package files must include dist.`);
+  }
 }
 
 console.log(`Release version ${expected} matches package and plugin manifests.`);

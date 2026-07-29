@@ -41,15 +41,33 @@ jobs:
       - name: Build and smoke plugin
         run: npm run smoke:plugin
 
+      - name: Verify packed install
+        run: npm run smoke:pack
+
       - name: Publish core to npmjs
-        run: npm publish --workspace graph-engineering-loop-core --access public
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view "graph-engineering-loop-core@${VERSION}" version >/dev/null 2>&1; then
+            echo "graph-engineering-loop-core@${VERSION} already exists; skipping."
+          else
+            npm publish --workspace ./packages/core --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish CLI to npmjs
-        run: npm publish --workspace graph-engineering-loop --access public
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view "graph-engineering-loop@${VERSION}" version >/dev/null 2>&1; then
+            echo "graph-engineering-loop@${VERSION} already exists; skipping."
+          else
+            npm publish --workspace ./packages/cli --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify published CLI from a clean directory
+        run: npm run smoke:npx
 
       - name: Create GitHub Release with plugin install notes
         env:
@@ -63,7 +81,7 @@ jobs:
 
           \`\`\`bash
           npm install -g graph-engineering-loop
-          npx graph-engineering-loop --help
+          npx graph-engineering-loop --version
           \`\`\`
 
           ### Claude Code plugin (from this repo)

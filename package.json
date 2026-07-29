@@ -1,7 +1,7 @@
 {
-  "name": "graph-engineering-loop",
-  "version": "0.2.0",
-  "private": false,
+  "name": "graph-engineering-loop-workspace",
+  "version": "0.2.1",
+  "private": true,
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -10,12 +10,14 @@
     "build": "tsc -b packages/core packages/cli",
     "build:plugin": "npm run build && node scripts/build-plugin.mjs",
     "clean": "tsc -b packages/core packages/cli --clean && rm -rf packages/core/dist packages/cli/dist",
-    "pack:dry": "npm run clean && npm run build && npm --cache .npm-cache pack --workspace graph-engineering-loop-core --dry-run && npm --cache .npm-cache pack --workspace graph-engineering-loop --dry-run",
+    "pack:dry": "npm run clean && npm run build && npm --cache .npm-cache pack --workspace ./packages/core --dry-run && npm --cache .npm-cache pack --workspace ./packages/cli --dry-run",
     "verify:release": "node scripts/verify-release-version.mjs",
     "smoke:claude": "node scripts/smoke-claude.mjs",
     "smoke:plugin": "npm run build:plugin && node scripts/smoke-plugin.mjs",
     "smoke:plugin:claude": "node scripts/smoke-plugin-claude.mjs",
+    "smoke:npx": "node scripts/smoke-npx.mjs",
     "smoke:fake": "npm run build && node packages/cli/dist/cli.js run examples/fake/loops.json --adapter fake",
+    "smoke:pack": "node scripts/smoke-pack.mjs",
     "test": "node --test --import tsx tests/**/*.test.ts",
     "typecheck": "tsc -b packages/core packages/cli --pretty false && tsc -b packages/core packages/cli --clean"
   },

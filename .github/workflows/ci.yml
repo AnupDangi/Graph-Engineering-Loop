@@ -33,3 +33,6 @@ jobs:
 
       - name: Plugin smoke
         run: npm run smoke:plugin
+
+      - name: Packed install smoke
+        run: npm run smoke:pack

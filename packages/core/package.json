@@ -1,6 +1,6 @@
 {
   "name": "graph-engineering-loop-core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Harness-neutral core runtime for dependency-aware completion-driven engineering loop graphs.",
   "type": "module",
   "license": "MIT",
@@ -14,6 +14,9 @@
     "access": "public",
     "registry": "https://registry.npmjs.org"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
@@ -23,7 +26,6 @@
   ],
   "exports": {
     ".": {
-      "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }

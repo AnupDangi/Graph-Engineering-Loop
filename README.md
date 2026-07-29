@@ -9,7 +9,7 @@ The core format and runtime are harness-neutral. The first real harness target i
 
 ## Status
 
-This is an early `0.2.0` implementation. It includes:
+This is an early `0.2.1` implementation. It includes:
 
 - Version 1 graph validation.
 - Deterministic dependency scheduling.
@@ -29,7 +29,7 @@ Readiness today:
 - Claude adapter is locally smoke-verified with `npm run smoke:claude`.
 - The plugin artifact is tested from an isolated temp copy with `npm run smoke:plugin`; it does not require an npm package or global `loopgraph`.
 - The optional real namespaced-skill check is `npm run smoke:plugin:claude` and requires Claude Code authentication.
-- Registry publication is still unverified for standalone npm/NPX installation.
+- npm/NPX releases are verified from a clean temporary directory with `npm run smoke:npx`.
 
 ## Install
 
@@ -61,8 +61,8 @@ npm run smoke:plugin
 Pushes to `main` run CI only. Publishing happens when you push a version tag:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
 That publishes `graph-engineering-loop-core` then `graph-engineering-loop` to npmjs, and creates a GitHub Release with Claude plugin install notes.  

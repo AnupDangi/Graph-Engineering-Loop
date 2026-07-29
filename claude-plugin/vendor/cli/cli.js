@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
 import { GraphRuntime, LoopGraphFiles, createRunMetadata, isTerminalGraphStatus, parseLoopGraphJson } from "graph-engineering-loop-core";
 import { ClaudeHeadlessAdapter } from "./adapters/claude-adapter.js";
@@ -12,7 +12,16 @@ const EXIT_RUNTIME_FAILURE = 1;
 const EXIT_COMPLETED_WITH_BLOCKS = 2;
 const EXIT_CANCELLED = 3;
 const EXIT_INVALID_ARGUMENTS = 4;
+const CLI_VERSION = readCliVersion();
 async function main(args) {
+    if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
+        printHelp();
+        return EXIT_SUCCESS;
+    }
+    if (args.includes("--version") || args.includes("-v")) {
+        console.log(`graph-engineering-loop ${CLI_VERSION}`);
+        return EXIT_SUCCESS;
+    }
     const options = parseArgs(args);
     if (options.command === "validate") {
         const inputPath = options.file ?? options.input;
@@ -364,6 +373,44 @@ function printGraphSummary(graph, options) {
     }
     console.log(`Adapter: ${options.adapter}`);
     console.log(`Concurrency: ${options.maxConcurrency ?? graph.defaults?.maxConcurrentLoops ?? 2}`);
+}
+function printHelp() {
+    console.log(`Graph Engineering Loop ${CLI_VERSION}
+
+Usage:
+  graph-engineering-loop run <prompt-or-path> [options]
+  graph-engineering-loop validate <loops.json> [--project-root <path>]
+  graph-engineering-loop cancel [--project-root <path>]
+
+Commands:
+  run       Compile or execute a completion-driven loop graph
+  validate  Validate a loops.json graph without executing it
+  cancel    Cancel the active run for a project
+
+Run options:
+  --adapter <fake|claude|interactive|stdio>
+  --adapter-command <command>       Required for the stdio adapter
+  --project-root <path>             Defaults to the current directory
+  --max-concurrency <number>
+  --claude-path <path>
+  --claude-permission-mode <mode>
+  --claude-max-budget-usd <amount>
+  --claude-model <model>
+  --dry-run
+  --json
+
+Global:
+  -h, --help
+  -v, --version`);
+}
+function readCliVersion() {
+    try {
+        const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+        return packageJson.version ?? "unknown";
+    }
+    catch {
+        return "unknown";
+    }
 }
 function printRunResult(status, resultCount, resultsDir) {
     if (status === "completed") {

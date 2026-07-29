@@ -8,14 +8,15 @@ npm install -g graph-engineering-loop
 
 Only `graph-engineering-loop` and `graph-engineering-loop-core` are published.  
 The repo root (`graph-engineering-loop-workspace`) is `private: true` and is never published.  
-`graph-engineering-loop-repo` was a mistaken publish and has been unpublished — do not install it.
+`graph-engineering-loop@0.2.0` accidentally published the monorepo root without a
+binary. It is deprecated; `0.2.1` is the repaired CLI release.
 
 ## Tag publish
 
 This repo publishes on **version tag push**:
 
 ```text
-git push origin v0.2.0
+git push origin v0.2.1
 ```
 
 That triggers `.github/workflows/release.yml`, which:
@@ -23,7 +24,8 @@ That triggers `.github/workflows/release.yml`, which:
 1. Verifies the tag matches package + plugin versions
 2. Builds, tests, and runs `smoke:plugin`
 3. Publishes `graph-engineering-loop-core` then `graph-engineering-loop` to **npmjs**
-4. Creates a **GitHub Release** with npm + Claude plugin install notes
+4. Installs the exact published CLI with NPX in a clean temporary directory
+5. Creates a **GitHub Release** with npm + Claude plugin install notes
 
 CI on every `main` push/PR is `.github/workflows/ci.yml` (no publish).
 
@@ -60,13 +62,14 @@ npm run build:plugin
 4. Tag and push the tag (this is the publish trigger):
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
 5. Confirm:
    - Actions → Release workflow is green
    - `npm view graph-engineering-loop version`
+   - `npm run smoke:npx`
    - GitHub Releases shows the new tag
    - Claude marketplace install from the release notes works
 
@@ -74,7 +77,8 @@ git push origin v0.2.0
 
 ```bash
 npm run pack:dry
-node scripts/verify-release-version.mjs v0.2.0
+npm run smoke:pack
+node scripts/verify-release-version.mjs v0.2.1
 ```
 
 ## Claude plugin “push”

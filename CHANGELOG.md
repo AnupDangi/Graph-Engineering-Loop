@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- Repaired the npm release after `0.2.0` accidentally published the monorepo root without a CLI executable.
+- Restored a private, non-publishable workspace root.
+- Added production `--help` and `--version` CLI entry points.
+- Added clean-directory registry installation checks to the release workflow.
+- Publish `graph-engineering-loop-core` before the dependent `graph-engineering-loop` CLI.
+
 ## 0.2.0
 
 - Fixed package naming: only `graph-engineering-loop` / `graph-engineering-loop-core` publish; monorepo root is private and never published.

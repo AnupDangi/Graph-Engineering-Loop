@@ -10,12 +10,25 @@ const coreVendorRoot = join(vendorRoot, "node_modules", "graph-engineering-loop-
 const corePackage = JSON.parse(
   await readFile(join(repoRoot, "packages", "core", "package.json"), "utf8")
 );
+const cliPackage = JSON.parse(
+  await readFile(join(repoRoot, "packages", "cli", "package.json"), "utf8")
+);
 
 await rm(vendorRoot, { recursive: true, force: true });
 await mkdir(coreVendorRoot, { recursive: true });
 await cp(cliSource, join(vendorRoot, "cli"), { recursive: true });
 await cp(coreSource, join(coreVendorRoot, "dist"), { recursive: true });
 await cp(join(repoRoot, "packages", "core", "LICENSE"), join(coreVendorRoot, "LICENSE"));
+await writeFile(
+  join(vendorRoot, "package.json"),
+  `${JSON.stringify({
+    name: `${cliPackage.name}-plugin-runtime`,
+    version: cliPackage.version,
+    private: true,
+    type: "module"
+  }, null, 2)}\n`,
+  "utf8"
+);
 await writeFile(
   join(coreVendorRoot, "package.json"),
   `${JSON.stringify({
