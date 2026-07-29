@@ -38,11 +38,15 @@ await writeFile(graphPath, `${JSON.stringify({
   ]
 }, null, 2)}\n`);
 
-const validate = await execFileAsync("claude", ["plugin", "validate", pluginRoot], {
-  cwd: projectRoot
-});
-if (!validate.stdout.includes("Validation passed")) {
-  throw new Error(`Claude plugin validation did not pass:\n${validate.stdout}\n${validate.stderr}`);
+if (await commandExists("claude")) {
+  const validate = await execFileAsync("claude", ["plugin", "validate", pluginRoot], {
+    cwd: projectRoot
+  });
+  if (!validate.stdout.includes("Validation passed")) {
+    throw new Error(`Claude plugin validation did not pass:\n${validate.stdout}\n${validate.stderr}`);
+  }
+} else {
+  console.log("Claude CLI not installed; skipped native plugin manifest validation.");
 }
 
 await execFileAsync(join(pluginRoot, "bin", "loopgraph"), [
@@ -169,6 +173,18 @@ if (cancelledState.status !== "cancelled") {
 }
 
 console.log(`Isolated plugin smoke passed: ${tempRoot}`);
+
+async function commandExists(command) {
+  try {
+    await execFileAsync(command, ["--version"]);
+    return true;
+  } catch (error) {
+    if (error !== null && typeof error === "object" && error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
 
 function runWithInput(command, args, cwd, input = "") {
   return new Promise((resolvePromise, reject) => {
