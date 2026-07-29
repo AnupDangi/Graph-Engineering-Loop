@@ -3,6 +3,7 @@ dist/
 coverage/
 *.tsbuildinfo
 .npm-cache/
+tmp/
 .DS_Store
 
 .loopgraph/state.json

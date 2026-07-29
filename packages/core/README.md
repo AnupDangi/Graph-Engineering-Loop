@@ -7,5 +7,5 @@ This package contains graph validation, completion evaluation, deterministic sch
 Most users should install the CLI package:
 
 ```bash
-npm install -g graph-engineering-loop graph-engineering-loop-core
+npm install -g graph-engineering-loop
 ```

@@ -9,13 +9,13 @@ Run Graph Engineering Loop for `$ARGUMENTS`.
 Use the Bash tool to execute:
 
 ```bash
-npx graph-engineering-loop run "$ARGUMENTS" --adapter claude
+loopgraph run "$ARGUMENTS" --adapter claude
 ```
 
 If `$ARGUMENTS` is empty, run:
 
 ```bash
-npx graph-engineering-loop run --adapter claude
+loopgraph run --adapter claude
 ```
 
 Report the graph summary, status, and `.loopgraph/results/` path. Do not duplicate the scheduler in this skill; the CLI owns graph progression.

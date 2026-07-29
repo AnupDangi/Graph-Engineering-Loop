@@ -25,7 +25,7 @@ This is an early `0.1.0` implementation. It includes:
 After npm publication:
 
 ```bash
-npm install -g graph-engineering-loop graph-engineering-loop-core
+npm install -g graph-engineering-loop
 ```
 
 Or run through NPX:
@@ -41,6 +41,7 @@ npm install
 npm test
 npm run typecheck
 npm run build
+npm run smoke:fake
 ```
 
 ## Quick Start
@@ -70,6 +71,13 @@ npx graph-engineering-loop cancel
 ```
 
 ## Claude Code Plugin
+
+This repo also includes project-local Claude commands for development:
+
+```text
+/loop-graph <prompt-or-path>
+/cancel-loop-graph
+```
 
 For local plugin testing:
 
@@ -173,7 +181,9 @@ The initial intended npm packages are:
 - `graph-engineering-loop`
 - `graph-engineering-loop-core`
 
-Confirm these before publishing if you prefer scoped names.
+The CLI package depends on the core package, so most users install only `graph-engineering-loop`.
+
+Confirm these package names before publishing if you prefer scoped names.
 
 ## Current Limitations
 

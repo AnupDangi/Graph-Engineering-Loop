@@ -103,6 +103,13 @@ Build version 0.1 as:
 
 Do not implement every adapter in the MVP. Claude Code is the first supported adapter.
 
+Current package names:
+
+- CLI package: `graph-engineering-loop`
+- Core package: `graph-engineering-loop-core`
+
+The CLI also exposes a compatibility binary named `loopgraph`.
+
 ## Recommended Repository Structure
 
 Use a TypeScript monorepo or a clean single repository with equivalent boundaries:
@@ -552,11 +559,18 @@ The scheduler must adapt to capabilities. If `supportsParallelLoops` is false, r
 
 ## Claude Code Adapter
 
-The Claude plugin should provide:
+For project-local development, `.claude/commands/` should provide short commands:
 
 ```text
 /loop-graph
 /cancel-loop-graph
+```
+
+For installed Claude Code plugins, skills are namespaced by plugin name and should provide:
+
+```text
+/graph-engineering-loop:loop-graph
+/graph-engineering-loop:cancel-loop-graph
 ```
 
 The plugin skill should invoke the bundled `loopgraph` executable. It must not reimplement the scheduler in Markdown.
@@ -595,11 +609,11 @@ Do not build a distributed daemon in version 0.1.
 Package target:
 
 ```bash
-npx loopgraph run @PLAN.md
-npx loopgraph run "Build authentication and a dashboard"
-npx loopgraph run .loopgraph/loops.json
-npx loopgraph cancel
-npx loopgraph validate .loopgraph/loops.json
+npx graph-engineering-loop run @PLAN.md
+npx graph-engineering-loop run "Build authentication and a dashboard"
+npx graph-engineering-loop run .loopgraph/loops.json
+npx graph-engineering-loop cancel
+npx graph-engineering-loop validate .loopgraph/loops.json
 ```
 
 Primary public operations are `run` and `cancel`. `validate` and `inspect` may exist as supporting utilities.

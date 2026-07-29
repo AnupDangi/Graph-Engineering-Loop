@@ -7,7 +7,7 @@ description: Cancel the active Graph Engineering Loop run in the current project
 Use the Bash tool to execute:
 
 ```bash
-npx graph-engineering-loop cancel
+loopgraph cancel
 ```
 
 Report whether a run was cancelled or no active run was found.
