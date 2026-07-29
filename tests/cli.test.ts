@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 const repoRoot = resolve(import.meta.dirname, "..");
 const cliPath = join(repoRoot, "packages/cli/src/cli.ts");
 const examplePath = join(repoRoot, "examples/fake/loops.json");
+const stdioAdapterPath = join(repoRoot, "examples/stdio-adapter.mjs");
 
 test("CLI validates and runs the fake example with durable results", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-cli-"));
@@ -33,6 +34,31 @@ test("CLI validates and runs the fake example with durable results", async () =>
     await readFile(join(projectRoot, ".loopgraph/results/integration.json"), "utf8")
   ) as { status: string };
   assert.equal(integrationResult.status, "completed");
+});
+
+test("CLI runs the fake example through the generic stdio adapter", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-stdio-"));
+  const graphPath = join(projectRoot, "loops.json");
+  await cp(examplePath, graphPath);
+
+  const run = await runCli([
+    "run",
+    graphPath,
+    "--adapter",
+    "stdio",
+    "--adapter-command",
+    `${process.execPath} ${stdioAdapterPath}`,
+    "--project-root",
+    projectRoot
+  ]);
+  assert.equal(run.code, 0, run.stderr);
+  assert.match(run.stdout, /LoopGraph completed/);
+
+  const integrationResult = JSON.parse(
+    await readFile(join(projectRoot, ".loopgraph/results/integration.json"), "utf8")
+  ) as { summary: string; status: string };
+  assert.equal(integrationResult.status, "completed");
+  assert.match(integrationResult.summary, /stdio example adapter/);
 });
 
 function runCli(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {

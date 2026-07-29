@@ -16,6 +16,7 @@ import {
 } from "graph-engineering-loop-core";
 import { ClaudeHeadlessAdapter } from "./adapters/claude-adapter.js";
 import { FakeAdapter } from "./adapters/fake-adapter.js";
+import { StdioAdapter } from "./adapters/stdio-adapter.js";
 
 const EXIT_SUCCESS = 0;
 const EXIT_RUNTIME_FAILURE = 1;
@@ -27,7 +28,8 @@ interface CliOptions {
   command?: string;
   input?: string;
   file?: string;
-  adapter: "fake" | "claude";
+  adapter: "fake" | "claude" | "stdio";
+  adapterCommand?: string;
   projectRoot: string;
   maxConcurrency?: number;
   dryRun: boolean;
@@ -57,7 +59,7 @@ async function main(args: string[]): Promise<number> {
     return cancelGraph(options);
   }
 
-  console.error("Usage: loopgraph <run|cancel|validate> [input] [--adapter fake|claude]");
+  console.error("Usage: loopgraph <run|cancel|validate> [input] [--adapter fake|claude|stdio]");
   return EXIT_INVALID_ARGUMENTS;
 }
 
@@ -80,7 +82,7 @@ async function runGraph(options: CliOptions): Promise<number> {
   process.once("SIGTERM", stop);
 
   try {
-    const adapter = createAdapter(options.adapter);
+    const adapter = createAdapter(options.adapter, options);
     const runtime = new GraphRuntime({
       graph,
       adapter,
@@ -249,9 +251,17 @@ async function writeCompiledGraph(projectRoot: string, graph: LoopGraph): Promis
   return graph;
 }
 
-function createAdapter(name: CliOptions["adapter"]): HarnessAdapter {
+function createAdapter(name: CliOptions["adapter"], options: CliOptions): HarnessAdapter {
   if (name === "claude") {
     return new ClaudeHeadlessAdapter();
+  }
+
+  if (name === "stdio") {
+    if (options.adapterCommand === undefined) {
+      throw new Error("--adapter-command is required when --adapter stdio is used");
+    }
+
+    return new StdioAdapter({ command: options.adapterCommand });
   }
 
   return new FakeAdapter();
@@ -276,12 +286,15 @@ function parseArgs(args: string[]): CliOptions {
         break;
       case "--adapter": {
         const adapter = requireValue(args, ++index, "--adapter");
-        if (adapter !== "fake" && adapter !== "claude") {
-          throw new Error("--adapter must be 'fake' or 'claude'");
+        if (adapter !== "fake" && adapter !== "claude" && adapter !== "stdio") {
+          throw new Error("--adapter must be 'fake', 'claude', or 'stdio'");
         }
         options.adapter = adapter;
         break;
       }
+      case "--adapter-command":
+        options.adapterCommand = requireValue(args, ++index, "--adapter-command");
+        break;
       case "--project-root":
         options.projectRoot = resolve(requireValue(args, ++index, "--project-root"));
         break;

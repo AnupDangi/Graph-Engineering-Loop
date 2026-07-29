@@ -557,6 +557,18 @@ export interface HarnessCapabilities {
 
 The scheduler must adapt to capabilities. If `supportsParallelLoops` is false, run ready loops sequentially without changing graph semantics.
 
+## Generic Stdio Adapter
+
+The CLI should support a generic adapter for future harnesses without package-specific code:
+
+```bash
+npx graph-engineering-loop run .loopgraph/loops.json \
+  --adapter stdio \
+  --adapter-command "your-harness-wrapper"
+```
+
+The command receives a JSON message on stdin containing the adapter context and `LoopExecutionRequest`, and must return a `LoopExecutionResult` JSON object on stdout. This makes Cursor, OpenCode, Codex, shell scripts, or bespoke harnesses pluggable before native adapters exist.
+
 ## Claude Code Adapter
 
 For project-local development, `.claude/commands/` should provide short commands:

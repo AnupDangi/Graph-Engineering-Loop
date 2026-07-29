@@ -18,6 +18,7 @@ This is an early `0.1.0` implementation. It includes:
 - CLI commands: `run`, `cancel`, and `validate`.
 - Fake adapter for real local smoke tests.
 - Claude Code headless adapter using `claude -p`.
+- Generic stdio adapter for any harness wrapper that can read JSON from stdin and write JSON to stdout.
 - Claude Code plugin and marketplace skeleton.
 
 ## Install
@@ -64,6 +65,14 @@ Run with Claude Code headless:
 npx graph-engineering-loop run .loopgraph/loops.json --adapter claude
 ```
 
+Run with a generic external harness command:
+
+```bash
+npx graph-engineering-loop run examples/fake/loops.json \
+  --adapter stdio \
+  --adapter-command "node examples/stdio-adapter.mjs"
+```
+
 Cancel the active project run:
 
 ```bash
@@ -100,6 +109,30 @@ For GitHub marketplace installation after this repository is pushed:
 ```
 
 Claude Code plugins are namespaced by plugin name, so the skills are intentionally exposed as `/graph-engineering-loop:loop-graph` and `/graph-engineering-loop:cancel-loop-graph`.
+
+## Generic Harness Adapter
+
+Use `--adapter stdio` to connect any harness or custom script without changing the core runtime.
+
+The adapter command receives one JSON object on stdin containing `type`, `adapterContext`, and the `LoopExecutionRequest`. It must write a `LoopExecutionResult` JSON object to stdout:
+
+```json
+{
+  "status": "complete",
+  "summary": "Implemented the loop objective.",
+  "completedTasks": [],
+  "remainingWork": [],
+  "changedFiles": [],
+  "commandsRun": [],
+  "completionEvidence": [],
+  "handoff": [],
+  "blockedReason": null
+}
+```
+
+See [examples/stdio-adapter.mjs](./examples/stdio-adapter.mjs).
+
+The adapter command runs with `cwd` set to the target project root. Use an absolute path for the wrapper script when invoking a script outside that project.
 
 ## `loops.json`
 
@@ -189,6 +222,7 @@ Confirm these package names before publishing if you prefer scoped names.
 
 - Resume invalidation is minimal.
 - The Claude adapter uses headless CLI execution and runs loops sequentially for safety.
+- The stdio adapter runs loops sequentially because arbitrary harness commands may not be repository-concurrency safe.
 - Prompt-to-graph compilation is deterministic and simple unless the Claude adapter is extended to compile graphs through the harness.
 - No automatic Git worktree isolation or merge handling yet.
 - The CLI package currently depends on the separately published core package.

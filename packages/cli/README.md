@@ -6,6 +6,7 @@ CLI for Graph Engineering Loop.
 npx graph-engineering-loop validate examples/fake/loops.json
 npx graph-engineering-loop run examples/fake/loops.json --adapter fake
 npx graph-engineering-loop run .loopgraph/loops.json --adapter claude
+npx graph-engineering-loop run examples/fake/loops.json --adapter stdio --adapter-command "node examples/stdio-adapter.mjs"
 npx graph-engineering-loop cancel
 ```
 
