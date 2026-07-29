@@ -2,6 +2,7 @@
 
 ## 0.2.0
 
+- Added GitHub Actions CI and tag-triggered npm + Claude plugin release workflow.
 - Made the Claude Code plugin self-contained with a vendored CLI/core runtime.
 - Added a file-backed interactive adapter so the active Claude Code session executes loops without nested `claude -p` processes.
 - Added the plugin bridge contract for starting runs, receiving work packets, submitting structured evidence, and reading status.

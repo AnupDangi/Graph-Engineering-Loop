@@ -120,6 +120,7 @@ Current readiness stance:
 - The plugin ships a built CLI/core artifact under `claude-plugin/vendor/` and does not depend on npm or a global binary at runtime.
 - `npm run smoke:plugin` must pass against an isolated copy of the plugin before release.
 - `npm run smoke:plugin:claude` is the optional paid end-to-end namespaced-skill check and requires an authenticated Claude Code session.
+- Version tag pushes (`v*`) run `.github/workflows/release.yml` to publish npm packages and create a GitHub Release that documents Claude plugin marketplace install.
 
 ## Recommended Repository Structure
 

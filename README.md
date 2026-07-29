@@ -33,7 +33,7 @@ Readiness today:
 
 ## Install
 
-After npm publication:
+After a version tag is pushed (see [PUBLISHING.md](./PUBLISHING.md)):
 
 ```bash
 npm install -g graph-engineering-loop
@@ -53,7 +53,20 @@ npm test
 npm run typecheck
 npm run build
 npm run smoke:fake
+npm run smoke:plugin
 ```
+
+## Publishing
+
+Pushes to `main` run CI only. Publishing happens when you push a version tag:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+That publishes both npm packages and creates a GitHub Release with Claude plugin install notes.  
+One-time setup: add an `NPM_TOKEN` repo secret. Full checklist: [PUBLISHING.md](./PUBLISHING.md).
 
 To test the real Claude adapter locally:
 
@@ -264,7 +277,7 @@ GitHub Packages requires scoped npm package names. See [GITHUB_PACKAGES.md](./GI
 - The stdio adapter runs loops sequentially because arbitrary harness commands may not be repository-concurrency safe.
 - Prompt-to-graph compilation is Claude-backed only when `--adapter claude` is selected; fake/stdio keep a deterministic fallback template.
 - No automatic Git worktree isolation or merge handling yet.
-- Registry install remains unverified until `graph-engineering-loop` and `graph-engineering-loop-core` are published.
+- Registry install remains unverified until the first `v*` tag Release workflow publishes successfully with `NPM_TOKEN` configured.
 
 ## References
 

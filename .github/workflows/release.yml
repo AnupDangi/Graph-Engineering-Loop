@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify tag matches package versions
+        run: node scripts/verify-release-version.mjs
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Fake smoke
+        run: npm run smoke:fake
+
+      - name: Build and smoke plugin
+        run: npm run smoke:plugin
+
+      - name: Publish core to npmjs
+        run: npm publish --workspace graph-engineering-loop-core --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish CLI to npmjs
+        run: npm publish --workspace graph-engineering-loop --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release with plugin install notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cat > /tmp/release-notes.md <<EOF
+          ## Graph Engineering Loop ${GITHUB_REF_NAME}
+
+          ### npm
+
+          \`\`\`bash
+          npm install -g graph-engineering-loop
+          npx graph-engineering-loop --help
+          \`\`\`
+
+          ### Claude Code plugin (from this repo)
+
+          \`\`\`text
+          /plugin marketplace add AnupDangi/Graph-Engineering-Loop
+          /plugin install graph-engineering-loop@graph-engineering-loop-marketplace
+          \`\`\`
+
+          Local plugin check:
+
+          \`\`\`bash
+          npm run build:plugin
+          claude --plugin-dir ./claude-plugin
+          \`\`\`
+
+          Packages published:
+
+          - graph-engineering-loop-core@${VERSION}
+          - graph-engineering-loop@${VERSION}
+          EOF
+          # Strip the common leading indent from the heredoc body.
+          sed -i 's/^          //' /tmp/release-notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Graph Engineering Loop ${GITHUB_REF_NAME}" \
+            --notes-file /tmp/release-notes.md

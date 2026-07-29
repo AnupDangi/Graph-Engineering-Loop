@@ -122,8 +122,11 @@ gh repo create AnupDangi/Graph-Engineering-Loop --public --source=. --remote=ori
 git push origin v0.1.0
 ```
 
-## What You Need To Decide
+## Current Default
 
-1. Should package names be renamed to scoped packages now?
-2. Should GitHub Packages be published in addition to npmjs for version `0.1.0`?
-3. Should the GitHub package visibility remain private initially, or be made public after publish?
+npmjs unscoped publish is wired in `.github/workflows/release.yml` (see [PUBLISHING.md](./PUBLISHING.md)).
+
+GitHub Packages is **not** automatic yet because it requires scoped package names. Decide before enabling it:
+
+1. Rename packages to `@anupdangi/graph-engineering-loop(-core)` everywhere (Option A), or
+2. Keep npmjs unscoped and maintain a separate scoped publish path (Option B).

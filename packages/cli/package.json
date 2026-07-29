@@ -10,6 +10,10 @@
     "url": "git+https://github.com/AnupDangi/Graph-Engineering-Loop.git",
     "directory": "packages/cli"
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "main": "./dist/cli.js",
   "types": "./dist/cli.d.ts",
   "files": [

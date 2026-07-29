@@ -12,6 +12,7 @@
     "clean": "tsc -b packages/core packages/cli --clean && rm -rf packages/core/dist packages/cli/dist",
     "prepack": "npm run clean && npm run build",
     "pack:dry": "npm run clean && npm run build && npm --cache .npm-cache pack --workspace graph-engineering-loop-core --dry-run && npm --cache .npm-cache pack --workspace graph-engineering-loop --dry-run",
+    "verify:release": "node scripts/verify-release-version.mjs",
     "smoke:claude": "node scripts/smoke-claude.mjs",
     "smoke:plugin": "npm run build:plugin && node scripts/smoke-plugin.mjs",
     "smoke:plugin:claude": "node scripts/smoke-plugin-claude.mjs",
