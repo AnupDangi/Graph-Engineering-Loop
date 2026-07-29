@@ -2,7 +2,7 @@
 
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
-import { dirname, resolve, join } from "node:path";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 import {
   GraphRuntime,
   LoopGraphFiles,
@@ -30,6 +30,10 @@ interface CliOptions {
   file?: string;
   adapter: "fake" | "claude" | "stdio";
   adapterCommand?: string;
+  claudePath?: string;
+  claudePermissionMode?: string;
+  claudeMaxBudgetUsd?: string;
+  claudeModel?: string;
   projectRoot: string;
   maxConcurrency?: number;
   dryRun: boolean;
@@ -46,7 +50,8 @@ async function main(args: string[]): Promise<number> {
       return EXIT_INVALID_ARGUMENTS;
     }
 
-    const graph = parseLoopGraphJson(await readFile(resolve(options.projectRoot, inputPath), "utf8"));
+    const path = await resolveExistingInputPath(options, inputPath);
+    const graph = parseLoopGraphJson(await readFile(path, "utf8"));
     console.log(`LoopGraph '${graph.name}' is valid (${graph.loops.length} loops).`);
     return EXIT_SUCCESS;
   }
@@ -64,7 +69,8 @@ async function main(args: string[]): Promise<number> {
 }
 
 async function runGraph(options: CliOptions): Promise<number> {
-  const graph = await resolveGraphInput(options);
+  const adapter = createAdapter(options.adapter, options);
+  const graph = await resolveGraphInput(options, adapter);
   const files = new LoopGraphFiles(options.projectRoot);
   const metadata = createRunMetadata(graph, options.projectRoot);
 
@@ -82,7 +88,6 @@ async function runGraph(options: CliOptions): Promise<number> {
   process.once("SIGTERM", stop);
 
   try {
-    const adapter = createAdapter(options.adapter, options);
     const runtime = new GraphRuntime({
       graph,
       adapter,
@@ -143,18 +148,25 @@ async function cancelGraph(options: CliOptions): Promise<number> {
   return EXIT_CANCELLED;
 }
 
-async function resolveGraphInput(options: CliOptions): Promise<LoopGraph> {
+async function resolveGraphInput(options: CliOptions, adapter: HarnessAdapter): Promise<LoopGraph> {
   const explicitPath = options.file ?? options.input;
 
-  if (explicitPath !== undefined && await fileExists(resolve(options.projectRoot, stripAtPrefix(explicitPath)))) {
-    const path = resolve(options.projectRoot, stripAtPrefix(explicitPath));
+  if (explicitPath !== undefined) {
+    const path = await resolveOptionalInputPath(options, explicitPath);
+    if (path === null && looksLikePath(explicitPath)) {
+      throw new Error(`Input path does not exist: ${stripAtPrefix(explicitPath)}`);
+    }
+    if (path === null) {
+      return writeCompiledGraph(options.projectRoot, await compileGraph(options, adapter, explicitPath, "prompt"));
+    }
+
     const content = await readFile(path, "utf8");
     const graph = tryParseGraph(content);
     if (graph !== null) {
       return graph;
     }
 
-    return writeCompiledGraph(options.projectRoot, compileRequirementsToGraph(content, path));
+    return writeCompiledGraph(options.projectRoot, await compileGraph(options, adapter, content, "file"));
   }
 
   const projectGraph = resolve(options.projectRoot, ".loopgraph/loops.json");
@@ -168,10 +180,51 @@ async function resolveGraphInput(options: CliOptions): Promise<LoopGraph> {
   }
 
   if (options.input !== undefined) {
-    return writeCompiledGraph(options.projectRoot, compileRequirementsToGraph(options.input, "prompt"));
+    return writeCompiledGraph(options.projectRoot, await compileGraph(options, adapter, options.input, "prompt"));
   }
 
   throw new Error("No graph or requirements supplied. Provide a prompt, a requirements file, or .loopgraph/loops.json.");
+}
+
+async function resolveExistingInputPath(options: CliOptions, input: string): Promise<string> {
+  const path = await resolveOptionalInputPath(options, input);
+  if (path === null) {
+    throw new Error(`Input path does not exist: ${stripAtPrefix(input)}`);
+  }
+
+  return path;
+}
+
+async function resolveOptionalInputPath(options: CliOptions, input: string): Promise<string | null> {
+  const stripped = stripAtPrefix(input);
+  const candidates = isAbsolute(stripped)
+    ? [stripped]
+    : [resolve(process.cwd(), stripped), resolve(options.projectRoot, stripped)];
+
+  for (const candidate of candidates) {
+    if (await fileExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+async function compileGraph(
+  options: CliOptions,
+  adapter: HarnessAdapter,
+  input: string,
+  inputKind: "prompt" | "file" | "directory"
+): Promise<LoopGraph> {
+  if (adapter.compileGraph !== undefined) {
+    return adapter.compileGraph({
+      projectRoot: options.projectRoot,
+      input,
+      inputKind
+    });
+  }
+
+  return compileRequirementsToGraph(input, inputKind);
 }
 
 function compileRequirementsToGraph(requirements: string, sourceLabel: string): LoopGraph {
@@ -253,7 +306,12 @@ async function writeCompiledGraph(projectRoot: string, graph: LoopGraph): Promis
 
 function createAdapter(name: CliOptions["adapter"], options: CliOptions): HarnessAdapter {
   if (name === "claude") {
-    return new ClaudeHeadlessAdapter();
+    return new ClaudeHeadlessAdapter({
+      claudePath: options.claudePath,
+      permissionMode: options.claudePermissionMode,
+      maxBudgetUsd: options.claudeMaxBudgetUsd,
+      model: options.claudeModel
+    });
   }
 
   if (name === "stdio") {
@@ -294,6 +352,18 @@ function parseArgs(args: string[]): CliOptions {
       }
       case "--adapter-command":
         options.adapterCommand = requireValue(args, ++index, "--adapter-command");
+        break;
+      case "--claude-path":
+        options.claudePath = requireValue(args, ++index, "--claude-path");
+        break;
+      case "--claude-permission-mode":
+        options.claudePermissionMode = requireValue(args, ++index, "--claude-permission-mode");
+        break;
+      case "--claude-max-budget-usd":
+        options.claudeMaxBudgetUsd = requireValue(args, ++index, "--claude-max-budget-usd");
+        break;
+      case "--claude-model":
+        options.claudeModel = requireValue(args, ++index, "--claude-model");
         break;
       case "--project-root":
         options.projectRoot = resolve(requireValue(args, ++index, "--project-root"));
@@ -354,6 +424,16 @@ function tryParseGraph(content: string): LoopGraph | null {
 
 function stripAtPrefix(input: string): string {
   return input.startsWith("@") ? input.slice(1) : input;
+}
+
+function looksLikePath(input: string): boolean {
+  const stripped = stripAtPrefix(input);
+  return (
+    input.startsWith("@") ||
+    stripped.includes("/") ||
+    stripped.includes(sep) ||
+    /\.(json|md|markdown|txt|yaml|yml)$/i.test(stripped)
+  );
 }
 
 function printGraphSummary(graph: LoopGraph, options: CliOptions): void {

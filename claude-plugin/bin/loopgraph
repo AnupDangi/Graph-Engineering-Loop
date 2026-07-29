@@ -1,2 +1,15 @@
 #!/usr/bin/env bash
-exec npx graph-engineering-loop "$@"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_CLI="$SCRIPT_DIR/../../packages/cli/dist/cli.js"
+
+if [[ -f "$LOCAL_CLI" ]]; then
+  exec node "$LOCAL_CLI" "$@"
+fi
+
+if command -v graph-engineering-loop >/dev/null 2>&1; then
+  exec graph-engineering-loop "$@"
+fi
+
+exec npx -y graph-engineering-loop "$@"

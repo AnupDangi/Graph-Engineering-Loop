@@ -36,6 +36,34 @@ test("CLI validates and runs the fake example with durable results", async () =>
   assert.equal(integrationResult.status, "completed");
 });
 
+test("CLI resolves relative graph paths from the invoking directory even with a different project root", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-path-root-"));
+
+  const validate = await runCli([
+    "validate",
+    "examples/fake/loops.json",
+    "--project-root",
+    projectRoot
+  ]);
+  assert.equal(validate.code, 0, validate.stderr);
+  assert.match(validate.stdout, /fake-vertical-slice/);
+});
+
+test("CLI rejects missing path-like inputs instead of compiling them as prompts", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-missing-path-"));
+
+  const run = await runCli([
+    "run",
+    "missing/loops.json",
+    "--adapter",
+    "fake",
+    "--project-root",
+    projectRoot
+  ]);
+  assert.equal(run.code, 1);
+  assert.match(run.stderr, /Input path does not exist/);
+});
+
 test("CLI runs the fake example through the generic stdio adapter", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-stdio-"));
   const graphPath = join(projectRoot, "loops.json");

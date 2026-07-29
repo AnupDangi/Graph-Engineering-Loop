@@ -1,0 +1,29 @@
+{
+  "$schema": "https://loopgraph.dev/schemas/loops.v1.json",
+  "version": 1,
+  "name": "claude-smoke",
+  "goal": "Verify that the Claude adapter can perform a tiny real file edit and return structured evidence.",
+  "defaults": {
+    "maxIterations": 1,
+    "maxConcurrentLoops": 1
+  },
+  "loops": [
+    {
+      "id": "write-smoke-file",
+      "title": "Write smoke file",
+      "objective": "Create tmp/claude-smoke.txt containing the text 'claude smoke ok'.",
+      "tasks": [
+        "Create tmp/claude-smoke.txt",
+        "Ensure the file contains exactly enough text for verification"
+      ],
+      "dependsOn": [],
+      "completionConditions": [
+        {
+          "type": "fileContains",
+          "path": "tmp/claude-smoke.txt",
+          "text": "claude smoke ok"
+        }
+      ]
+    }
+  ]
+}

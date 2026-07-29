@@ -22,6 +22,13 @@ This is an early `0.1.0` implementation. It includes:
 - Generic stdio adapter for any harness wrapper that can read JSON from stdin and write JSON to stdout.
 - Claude Code plugin and marketplace skeleton.
 
+Readiness today:
+
+- Core runtime, fake adapter, and stdio adapter are covered by automated tests.
+- Claude adapter is locally smoke-verified with `npm run smoke:claude`.
+- Claude plugin installation is local-first until the npm package is published.
+- Marketplace/npm installation is not production-ready until a package is published and install is tested from the registry.
+
 ## Install
 
 After npm publication:
@@ -46,6 +53,14 @@ npm run build
 npm run smoke:fake
 ```
 
+To test the real Claude adapter locally:
+
+```bash
+npm run smoke:claude
+```
+
+This creates a fresh temp project, invokes Claude Code headless mode, may use Claude API credits, is capped at `$1.00`, and verifies that Claude creates `tmp/claude-smoke.txt`.
+
 ## Quick Start
 
 Validate a graph:
@@ -63,7 +78,7 @@ npx graph-engineering-loop run examples/fake/loops.json --adapter fake
 Run with Claude Code headless:
 
 ```bash
-npx graph-engineering-loop run .loopgraph/loops.json --adapter claude
+npx graph-engineering-loop run .loopgraph/loops.json --adapter claude --claude-permission-mode acceptEdits
 ```
 
 Run with a generic external harness command:
@@ -92,6 +107,7 @@ This repo also includes project-local Claude commands for development:
 For local plugin testing:
 
 ```bash
+npm run build
 claude --plugin-dir ./claude-plugin
 ```
 
@@ -226,9 +242,9 @@ GitHub Packages requires scoped npm package names. See [GITHUB_PACKAGES.md](./GI
 - Resume invalidation is minimal.
 - The Claude adapter uses headless CLI execution and runs loops sequentially for safety.
 - The stdio adapter runs loops sequentially because arbitrary harness commands may not be repository-concurrency safe.
-- Prompt-to-graph compilation is deterministic and simple unless the Claude adapter is extended to compile graphs through the harness.
+- Prompt-to-graph compilation is Claude-backed only when `--adapter claude` is selected; fake/stdio keep a deterministic fallback template.
 - No automatic Git worktree isolation or merge handling yet.
-- The CLI package currently depends on the separately published core package.
+- Registry install is unverified until `graph-engineering-loop` and `graph-engineering-loop-core` are published.
 
 ## References
 

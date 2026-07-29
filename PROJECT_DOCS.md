@@ -112,6 +112,12 @@ The CLI also exposes a compatibility binary named `loopgraph`.
 
 GitHub Packages requires scoped npm package names. Before publishing to GitHub Packages, confirm whether to rename packages to `@anupdangi/graph-engineering-loop` and `@anupdangi/graph-engineering-loop-core`, or keep npmjs unscoped and maintain a separate scoped GitHub Packages release path.
 
+Current readiness stance:
+
+- Core, fake, and stdio paths are automated-test covered.
+- Claude adapter has a fresh-temp-project smoke test via `npm run smoke:claude`; require it to pass before release claims.
+- Plugin marketplace install remains experimental until the npm package is published or the plugin ships a built CLI artifact.
+
 ## Recommended Repository Structure
 
 Use a TypeScript monorepo or a clean single repository with equivalent boundaries:
@@ -617,6 +623,8 @@ The first implementation should use the simplest reliable Claude Code execution 
 - Persisted loop output after every iteration.
 
 Do not build a distributed daemon in version 0.1.
+
+When `--adapter claude` receives a prompt or non-graph requirements file, it should use the Claude adapter `compileGraph` method to generate a validated `loops.json`. Other adapters may use the deterministic fallback template until they implement `compileGraph`.
 
 ## CLI and Exit Codes
 
