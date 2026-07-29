@@ -2,6 +2,7 @@
 
 ## 0.2.0
 
+- Fixed package naming: only `graph-engineering-loop` / `graph-engineering-loop-core` publish; monorepo root is private and never published.
 - Added GitHub Actions CI and tag-triggered npm + Claude plugin release workflow.
 - Made the Claude Code plugin self-contained with a vendored CLI/core runtime.
 - Added a file-backed interactive adapter so the active Claude Code session executes loops without nested `claude -p` processes.
