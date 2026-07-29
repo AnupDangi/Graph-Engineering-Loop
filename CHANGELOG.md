@@ -12,3 +12,4 @@
 - Added Claude Code headless adapter using `claude -p`.
 - Added generic stdio adapter for custom harness wrappers.
 - Added Claude Code plugin and marketplace skeleton.
+- Added GitHub Packages setup notes and safe scoped registry mapping.

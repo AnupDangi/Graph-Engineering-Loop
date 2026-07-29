@@ -10,7 +10,7 @@
     "build": "tsc -b packages/core packages/cli",
     "clean": "tsc -b packages/core packages/cli --clean && rm -rf packages/core/dist packages/cli/dist",
     "prepack": "npm run build",
-    "pack:dry": "npm --cache .npm-cache pack --workspace graph-engineering-loop-core --dry-run && npm --cache .npm-cache pack --workspace graph-engineering-loop --dry-run",
+    "pack:dry": "npm run build && npm --cache .npm-cache pack --workspace graph-engineering-loop-core --dry-run && npm --cache .npm-cache pack --workspace graph-engineering-loop --dry-run",
     "smoke:fake": "npm run build && node packages/cli/dist/cli.js run examples/fake/loops.json --adapter fake",
     "test": "node --test --import tsx tests/**/*.test.ts",
     "typecheck": "tsc -b packages/core packages/cli --pretty false && tsc -b packages/core packages/cli --clean"

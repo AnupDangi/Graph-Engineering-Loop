@@ -110,6 +110,8 @@ Current package names:
 
 The CLI also exposes a compatibility binary named `loopgraph`.
 
+GitHub Packages requires scoped npm package names. Before publishing to GitHub Packages, confirm whether to rename packages to `@anupdangi/graph-engineering-loop` and `@anupdangi/graph-engineering-loop-core`, or keep npmjs unscoped and maintain a separate scoped GitHub Packages release path.
+
 ## Recommended Repository Structure
 
 Use a TypeScript monorepo or a clean single repository with equivalent boundaries:

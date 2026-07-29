@@ -219,6 +219,8 @@ The CLI package depends on the core package, so most users install only `graph-e
 
 Confirm these package names before publishing if you prefer scoped names.
 
+GitHub Packages requires scoped npm package names. See [GITHUB_PACKAGES.md](./GITHUB_PACKAGES.md) before publishing there.
+
 ## Current Limitations
 
 - Resume invalidation is minimal.

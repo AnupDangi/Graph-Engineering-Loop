@@ -6,6 +6,9 @@ coverage/
 tmp/
 .DS_Store
 
+# Never commit local npm credentials.
+.npmrc.local
+
 .loopgraph/state.json
 .loopgraph/lock.json
 .loopgraph/events.jsonl
