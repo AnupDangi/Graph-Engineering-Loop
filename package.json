@@ -1,7 +1,7 @@
 {
-  "name": "graph-engineering-loop-repo",
+  "name": "graph-engineering-loop-workspace",
   "version": "0.2.0",
-  "private": false,
+  "private": true,
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -10,7 +10,6 @@
     "build": "tsc -b packages/core packages/cli",
     "build:plugin": "npm run build && node scripts/build-plugin.mjs",
     "clean": "tsc -b packages/core packages/cli --clean && rm -rf packages/core/dist packages/cli/dist",
-    "prepack": "npm run clean && npm run build",
     "pack:dry": "npm run clean && npm run build && npm --cache .npm-cache pack --workspace graph-engineering-loop-core --dry-run && npm --cache .npm-cache pack --workspace graph-engineering-loop --dry-run",
     "verify:release": "node scripts/verify-release-version.mjs",
     "smoke:claude": "node scripts/smoke-claude.mjs",

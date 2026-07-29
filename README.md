@@ -33,8 +33,6 @@ Readiness today:
 
 ## Install
 
-After a version tag is pushed (see [PUBLISHING.md](./PUBLISHING.md)):
-
 ```bash
 npm install -g graph-engineering-loop
 ```
@@ -44,6 +42,8 @@ Or run through NPX:
 ```bash
 npx graph-engineering-loop run examples/fake/loops.json --adapter fake
 ```
+
+Do not install `graph-engineering-loop-repo` or the monorepo workspace name. Those are not the CLI.
 
 During local development:
 
@@ -65,7 +65,7 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-That publishes both npm packages and creates a GitHub Release with Claude plugin install notes.  
+That publishes `graph-engineering-loop-core` then `graph-engineering-loop` to npmjs, and creates a GitHub Release with Claude plugin install notes.  
 One-time setup: add an `NPM_TOKEN` repo secret. Full checklist: [PUBLISHING.md](./PUBLISHING.md).
 
 To test the real Claude adapter locally:

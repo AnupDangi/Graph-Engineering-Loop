@@ -1,5 +1,17 @@
 # Publishing
 
+## Install target
+
+```bash
+npm install -g graph-engineering-loop
+```
+
+Only `graph-engineering-loop` and `graph-engineering-loop-core` are published.  
+The repo root (`graph-engineering-loop-workspace`) is `private: true` and is never published.  
+`graph-engineering-loop-repo` was a mistaken publish and has been unpublished — do not install it.
+
+## Tag publish
+
 This repo publishes on **version tag push**:
 
 ```text

@@ -46,9 +46,26 @@ for (const relativePath of paths) {
 }
 
 const cli = JSON.parse(await readFile(resolve(root, "packages/cli/package.json"), "utf8"));
+const rootPkg = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+
+if (rootPkg.private !== true) {
+  throw new Error("Root package.json must be private:true so the monorepo is never published.");
+}
+
+if (rootPkg.name === "graph-engineering-loop" || rootPkg.name === "graph-engineering-loop-repo") {
+  throw new Error(
+    `Root package name '${rootPkg.name}' collides with a publishable package. Keep the monorepo private and named differently.`
+  );
+}
+
+if (cli.name !== "graph-engineering-loop") {
+  throw new Error(`CLI package must be named graph-engineering-loop, got ${cli.name}`);
+}
+
 const coreDep = cli.dependencies?.["graph-engineering-loop-core"];
 if (coreDep !== expected) {
   throw new Error(`CLI depends on graph-engineering-loop-core@${coreDep}, expected ${expected}`);
 }
 
 console.log(`Release version ${expected} matches package and plugin manifests.`);
+console.log(`Install target: npm i -g graph-engineering-loop`);
