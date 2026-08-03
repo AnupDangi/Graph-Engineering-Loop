@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.1
+## 0.2.2
 
 - Added an opt-in, harness-neutral project graph provider boundary.
 - Added a Graphify CLI provider with code-only preflight, incremental updates, scoped loop queries, cancellation, path containment, and disabled query logging.
@@ -9,6 +9,10 @@
 - Made every interactive Claude graph node a guarded, bounded Ralph-style continuation loop while keeping dependency advancement in the runtime.
 - Added atomic `.loopgraph/status.json` and visual `.loopgraph/status.md` projections with live loop, iteration, progress, and Mermaid DAG state.
 - Expanded isolated plugin smoke coverage for repeated Stop-hook contracts, recursion guards, incomplete iterations, graph-controlled transitions, status visuals, and cancellation.
+- Added an npm publisher authentication preflight and provenance attestations to release publishing.
+
+## 0.2.1
+
 - Repaired the npm release after `0.2.0` accidentally published the monorepo root without a CLI executable.
 - Restored a private, non-publishable workspace root.
 - Added production `--help` and `--version` CLI entry points.

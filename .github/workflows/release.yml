@@ -44,13 +44,18 @@ jobs:
       - name: Verify packed install
         run: npm run smoke:pack
 
+      - name: Verify npm publisher authentication
+        run: npm whoami --registry https://registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish core to npmjs
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           if npm view "graph-engineering-loop-core@${VERSION}" version >/dev/null 2>&1; then
             echo "graph-engineering-loop-core@${VERSION} already exists; skipping."
           else
-            npm publish --workspace ./packages/core --access public
+            npm publish --workspace ./packages/core --access public --provenance
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -61,7 +66,7 @@ jobs:
           if npm view "graph-engineering-loop@${VERSION}" version >/dev/null 2>&1; then
             echo "graph-engineering-loop@${VERSION} already exists; skipping."
           else
-            npm publish --workspace ./packages/cli --access public
+            npm publish --workspace ./packages/cli --access public --provenance
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

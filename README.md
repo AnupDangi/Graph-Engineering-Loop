@@ -9,7 +9,7 @@ The core format and runtime are harness-neutral. The first real harness target i
 
 ## Status
 
-This is an early `0.2.1` implementation. It includes:
+This is an early `0.2.2` implementation. It includes:
 
 - Version 1 graph validation.
 - Deterministic dependency scheduling.
@@ -63,8 +63,8 @@ npm run smoke:plugin
 Pushes to `main` run CI only. Publishing happens when you push a version tag:
 
 ```bash
-git tag v0.2.1
-git push origin v0.2.1
+git tag v0.2.2
+git push origin v0.2.2
 ```
 
 That publishes `graph-engineering-loop-core` then `graph-engineering-loop` to npmjs, and creates a GitHub Release with Claude plugin install notes.  
