@@ -83,6 +83,8 @@ Minimum persistent runtime structure:
 .loopgraph/
   loops.json
   state.json
+  status.json
+  status.md
   lock.json
   events.jsonl
   context/
@@ -92,7 +94,9 @@ Minimum persistent runtime structure:
     <loop-id>.md
 ```
 
-Only `.loopgraph/loops.json` should normally be authored or reviewed by users.
+Only `.loopgraph/loops.json` should normally be authored by users. `status.md`
+is a generated, human-readable live view; all other mutable files are runtime
+artifacts.
 
 ## Initial Target
 
@@ -419,6 +423,12 @@ All state writes must be atomic:
 
 Append structured runtime events to `.loopgraph/events.jsonl` for debugging, recovery, audits, scheduler tracing, and future visualizations.
 
+Every state transition also atomically updates `.loopgraph/status.json` and
+`.loopgraph/status.md`. The JSON file is the machine-readable status projection.
+The Markdown file shows progress, active objectives and tasks, loop iterations,
+dependency waits, and a Mermaid DAG. Both are projections of runtime state and
+must never become a second source of truth.
+
 ## Graph Validation
 
 Before execution, validate:
@@ -658,6 +668,15 @@ claude-plugin/
 
 Do not attach a global Stop hook that blindly repeats the whole graph prompt. The runtime owns graph progression. Hooks may preserve state, add small resume context, or handle cancellation, but only after checking whether an active run exists.
 
+Within an active interactive work packet, each loop follows a bounded
+Ralph-style continuation cycle: a guarded Stop hook blocks exit and returns the
+same loop objective, tasks, completion conditions, and iteration limit. The hook
+must use Claude Code's top-level `decision: "block"` response, honor
+`stop_hook_active`, and never choose the next loop. The runtime independently
+checks structured evidence; only a verified loop completion lets the scheduler
+unlock dependency-ready work. `maxIterations` is the safety limit. Runtime
+conditions replace a text-only completion promise.
+
 Claude Code has two explicit execution modes:
 
 - Inside an interactive Claude Code plugin session, use `--adapter interactive`. One background LoopGraph supervisor publishes a work packet under `.loopgraph/bridge/`; the active session performs the work and submits a structured `LoopExecutionResult`.
@@ -670,6 +689,7 @@ The interactive bridge must:
 - Use atomic request and response files.
 - Pin every operation to an explicit project root.
 - Persist normal state, events, and loop results after every iteration.
+- Expose `.loopgraph/status.md` and `.loopgraph/status.json` in bridge responses.
 - Reject malformed submissions before releasing the supervisor.
 
 Do not build a distributed daemon in version 0.1.

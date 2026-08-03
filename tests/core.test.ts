@@ -171,6 +171,18 @@ test("prepares and persists project graph context for each loop", async () => {
     foundation: async (request) => {
       assert.equal(request.projectGraphContext?.provider, "test-graph-provider");
       assert.deepEqual(request.projectGraphContext?.relevantFiles, ["packages/core/src/index.ts"]);
+      const liveState = JSON.parse(
+        await readFile(join(projectRoot, ".loopgraph/state.json"), "utf8")
+      ) as { status: string; loops: Record<string, { status: string; currentIteration: number }> };
+      assert.equal(liveState.status, "running");
+      assert.equal(liveState.loops.foundation.status, "running");
+      assert.equal(liveState.loops.foundation.currentIteration, 1);
+      const liveStatus = await readFile(join(projectRoot, ".loopgraph/status.md"), "utf8");
+      assert.match(liveStatus, /LoopGraph Live Status/);
+      assert.match(liveStatus, /Running loop foundation, iteration 1/);
+      assert.match(liveStatus, /🔄 running/);
+      assert.match(liveStatus, /Create a foundation file/);
+      assert.match(liveStatus, /flowchart LR/);
       await writeFile(join(projectRoot, "foundation.txt"), "ok");
     }
   });
@@ -211,7 +223,7 @@ test("prepares and persists project graph context for each loop", async () => {
     adapter,
     projectRoot,
     projectGraphProvider,
-    hooks: files.hooks(createRunMetadata(graph, projectRoot))
+    hooks: files.hooks(createRunMetadata(graph, projectRoot), graph)
   });
 
   const result = await runtime.run();
@@ -223,6 +235,23 @@ test("prepares and persists project graph context for each loop", async () => {
   ) as { provider: string; relevantFiles: string[] };
   assert.equal(persisted.provider, "test-graph-provider");
   assert.deepEqual(persisted.relevantFiles, ["packages/core/src/index.ts"]);
+  const finalStatus = JSON.parse(
+    await readFile(join(projectRoot, ".loopgraph/status.json"), "utf8")
+  ) as {
+    graphStatus: string;
+    completedLoops: number;
+    totalLoops: number;
+    loops: Array<{ id: string; status: string; currentIteration: number }>;
+  };
+  assert.equal(finalStatus.graphStatus, "completed");
+  assert.equal(finalStatus.completedLoops, 1);
+  assert.equal(finalStatus.totalLoops, 1);
+  assert.equal(finalStatus.loops[0]?.id, "foundation");
+  assert.equal(finalStatus.loops[0]?.status, "completed");
+  assert.equal(finalStatus.loops[0]?.currentIteration, 1);
+  const finalMarkdown = await readFile(join(projectRoot, ".loopgraph/status.md"), "utf8");
+  assert.match(finalMarkdown, /\[████████████\] 1\/1 loops completed/);
+  assert.match(finalMarkdown, /✅ completed/);
 });
 
 test("does not shut down an adapter that never initialized", async () => {

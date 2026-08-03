@@ -16,6 +16,7 @@ This is an early `0.2.1` implementation. It includes:
 - Completion evaluators for commands, file existence, file contents, assertions, and aggregate `all`.
 - Atomic `.loopgraph/state.json` writes.
 - `.loopgraph/lock.json`, `.loopgraph/events.jsonl`, and `.loopgraph/results/`.
+- Generated live `.loopgraph/status.md` graph visualization and `.loopgraph/status.json` status API.
 - CLI commands: `run`, `cancel`, and `validate`.
 - Fake adapter for real local smoke tests.
 - Claude Code headless adapter using `claude -p`.
@@ -224,6 +225,20 @@ background supervisor publishes one request at a time under
 This avoids recursive Claude Code launches. Direct CLI and CI usage can still
 select `--adapter claude` to use headless `claude -p` workers.
 
+Each graph node runs as a bounded Ralph-style loop in that session. When Claude
+tries to stop while work is pending, the guarded Stop hook returns the same
+active loop contract. The model keeps working from the current repository state;
+the runtime verifies completion evidence and alone decides when dependencies
+unlock the next loop. There is no new command and no text-only completion
+promise. `maxIterations` remains the safety limit. This design follows the
+[official Ralph Wiggum plugin](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum),
+but scopes repetition to one graph node at a time.
+
+During any run, open `.loopgraph/status.md` to see the Mermaid dependency graph,
+progress, active objective and tasks, current iteration, and blocked/waiting
+loops. CLI completion output prints this path, and plugin work packets expose
+both the Markdown view and `.loopgraph/status.json`.
+
 Release checks:
 
 ```bash
@@ -325,6 +340,8 @@ Runtime files:
   context/
     <loop-id>.json
   state.json
+  status.json
+  status.md
   lock.json
   events.jsonl
   results/

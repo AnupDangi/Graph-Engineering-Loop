@@ -33,6 +33,7 @@ test("CLI validates and runs the fake example with durable results", async () =>
   const run = await runCli(["run", graphPath, "--adapter", "fake", "--project-root", projectRoot]);
   assert.equal(run.code, 0);
   assert.match(run.stdout, /LoopGraph completed/);
+  assert.match(run.stdout, /Status: .*\.loopgraph\/status\.md/);
 
   const state = JSON.parse(await readFile(join(projectRoot, ".loopgraph/state.json"), "utf8")) as {
     status: string;
@@ -40,6 +41,17 @@ test("CLI validates and runs the fake example with durable results", async () =>
   };
   assert.equal(state.status, "completed");
   assert.equal(state.loops.integration.status, "completed");
+
+  const status = JSON.parse(await readFile(join(projectRoot, ".loopgraph/status.json"), "utf8")) as {
+    graphStatus: string;
+    completedLoops: number;
+    totalLoops: number;
+  };
+  assert.equal(status.graphStatus, "completed");
+  assert.equal(status.completedLoops, status.totalLoops);
+  const statusMarkdown = await readFile(join(projectRoot, ".loopgraph/status.md"), "utf8");
+  assert.match(statusMarkdown, /flowchart LR/);
+  assert.match(statusMarkdown, /integration/);
 
   const integrationResult = JSON.parse(
     await readFile(join(projectRoot, ".loopgraph/results/integration.json"), "utf8")

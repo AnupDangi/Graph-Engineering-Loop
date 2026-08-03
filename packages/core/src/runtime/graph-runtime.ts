@@ -55,6 +55,7 @@ export interface GraphRunSnapshot {
 export interface LoopStartedEvent {
   loopId: string;
   iteration: number;
+  snapshot: GraphRunSnapshot;
 }
 
 export interface LoopContextPreparedEvent {
@@ -72,6 +73,7 @@ export interface ConditionCheckedEvent {
 export interface LoopCompletedEvent {
   loopId: string;
   result: LoopResult;
+  snapshot: GraphRunSnapshot;
 }
 
 const DEFAULT_MAX_ITERATIONS = 4;
@@ -200,7 +202,8 @@ export class GraphRuntime {
       state.currentIteration += 1;
       await this.hooks.onLoopStarted?.({
         loopId: loop.id,
-        iteration: state.currentIteration
+        iteration: state.currentIteration,
+        snapshot: this.toRunSnapshot("running")
       });
 
       let adapterResult: LoopExecutionResult;
@@ -237,7 +240,11 @@ export class GraphRuntime {
         state.status = "failed";
         state.result = this.toLoopResult(loop, adapterResult, "failed", []);
         this.results.set(loop.id, state.result);
-        await this.hooks.onLoopBlocked?.({ loopId: loop.id, result: state.result });
+        await this.hooks.onLoopBlocked?.({
+          loopId: loop.id,
+          result: state.result,
+          snapshot: this.toRunSnapshot("running")
+        });
         return;
       }
 
@@ -245,7 +252,11 @@ export class GraphRuntime {
         state.status = "blocked";
         state.result = this.toLoopResult(loop, adapterResult, "blocked", []);
         this.results.set(loop.id, state.result);
-        await this.hooks.onLoopBlocked?.({ loopId: loop.id, result: state.result });
+        await this.hooks.onLoopBlocked?.({
+          loopId: loop.id,
+          result: state.result,
+          snapshot: this.toRunSnapshot("running")
+        });
         return;
       }
 
@@ -265,7 +276,11 @@ export class GraphRuntime {
         state.status = "completed";
         state.result = this.toLoopResult(loop, adapterResult, "completed", completion.evidence);
         this.results.set(loop.id, state.result);
-        await this.hooks.onLoopCompleted?.({ loopId: loop.id, result: state.result });
+        await this.hooks.onLoopCompleted?.({
+          loopId: loop.id,
+          result: state.result,
+          snapshot: this.toRunSnapshot("running")
+        });
         return;
       }
     }
@@ -282,7 +297,11 @@ export class GraphRuntime {
       blockedReason: previousResult?.blockedReason ?? "Maximum iterations reached"
     };
     this.results.set(loop.id, state.result);
-    await this.hooks.onLoopBlocked?.({ loopId: loop.id, result: state.result });
+    await this.hooks.onLoopBlocked?.({
+      loopId: loop.id,
+      result: state.result,
+      snapshot: this.toRunSnapshot("running")
+    });
   }
 
   private async prepareProjectGraphContext(
@@ -467,7 +486,23 @@ export class GraphRuntime {
   private toRunSnapshot(status: GraphStatus): GraphRunSnapshot {
     return {
       status,
-      loops: Object.fromEntries(this.states.entries())
+      loops: Object.fromEntries(
+        [...this.states.entries()].map(([loopId, state]) => [
+          loopId,
+          {
+            ...state,
+            waitingFor: [...state.waitingFor],
+            result: state.result === undefined
+              ? undefined
+              : {
+                  ...state.result,
+                  changedFiles: [...state.result.changedFiles],
+                  verification: [...state.result.verification],
+                  handoff: [...state.result.handoff]
+                }
+          }
+        ])
+      )
     };
   }
 }

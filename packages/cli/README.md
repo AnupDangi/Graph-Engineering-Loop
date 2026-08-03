@@ -12,6 +12,11 @@ npx graph-engineering-loop run .loopgraph/loops.json --adapter stdio --adapter-c
 npx graph-engineering-loop cancel
 ```
 
+Every real run generates `.loopgraph/status.md` and `.loopgraph/status.json`.
+Open the Markdown file while the process runs to see the live dependency graph,
+active objective/tasks, current iterations, and waiting or blocked loops. Normal
+CLI completion output prints its path.
+
 ## Graphify project context
 
 Install the optional Graphify CLI, then select it explicitly:
@@ -50,5 +55,10 @@ This creates a fresh temp project, invokes Claude Code with a `$1.00` max budget
 The `interactive` adapter is the file-backed bridge used by the Claude Code
 plugin. It waits for structured responses under `.loopgraph/bridge/`; normal
 standalone users should select `fake`, `stdio`, or `claude`.
+
+In the plugin, the current interactive packet repeats as a guarded Ralph-style
+loop until runtime evidence passes or `maxIterations` is exhausted. The graph
+scheduler alone advances to dependency-ready work; no additional public command
+is introduced.
 
 See the repository README for Claude Code plugin usage and `loops.json` details.

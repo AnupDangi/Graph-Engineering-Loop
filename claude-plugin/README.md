@@ -26,6 +26,16 @@ The loop skill uses the current Claude Code session as the worker:
 4. The active session implements the loop and submits structured evidence.
 5. The runtime evaluates completion, persists results, and unlocks dependencies.
 
+Each work packet is a bounded Ralph-style loop. A guarded Stop hook uses Claude
+Code's `decision: "block"` response to feed the same active loop contract back
+into the current session. It honors `stop_hook_active`; it does not replay the
+whole graph or choose another node. Verified runtime conditions control graph
+advancement, while `maxIterations` prevents an unbounded loop.
+
+The bridge response includes `.loopgraph/status.md` and
+`.loopgraph/status.json`. Open the Markdown file for a live Mermaid graph,
+progress bar, active objective/tasks, iteration count, and dependency waits.
+
 No nested `claude -p` process is started by the plugin. The separate headless
 adapter remains available for direct CLI and CI use.
 
@@ -36,9 +46,9 @@ test Graphify with Claude headless, run the packaged CLI directly with
 full project test flow. This keeps plugin execution free of unexpected external
 tool installation and indexing.
 
-Lifecycle hooks add concise active-run context on session start and give Claude
-one guarded continuation when it tries to stop with a work packet still pending.
-They never restart or replay the graph.
+Lifecycle hooks add concise active-run context on session start and keep the
+current work packet active when Claude tries to stop. They never restart or
+replay the graph.
 
 Verification:
 

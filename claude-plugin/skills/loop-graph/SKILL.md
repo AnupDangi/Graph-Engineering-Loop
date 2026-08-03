@@ -9,6 +9,12 @@ Run Graph Engineering Loop for `$ARGUMENTS` in the current Claude Code session.
 The CLI owns scheduling, state, iteration limits, completion checks, and dependency
 unlocking. Do not reproduce those responsibilities in this skill.
 
+Each graph loop behaves like a bounded Ralph-style loop inside the current
+session: the same loop contract is continued when Claude tries to stop, files and
+Git history carry progress forward, and `maxIterations` is the safety limit. The
+runtime's structured completion conditions replace Ralph's textual completion
+promise. Never advance to another graph node yourself.
+
 1. Set the project root to `${CLAUDE_PROJECT_DIR}`.
 2. Resolve the graph:
    - If `$ARGUMENTS` identifies a valid `loops.json`, copy its content to
@@ -34,6 +40,9 @@ unlocking. Do not reproduce those responsibilities in this skill.
 
 5. The bridge returns either a terminal status or a `work_required` packet.
    For each work packet:
+   - Show the user the current view from
+     `${CLAUDE_PROJECT_DIR}/.loopgraph/status.md` and identify the active loop and
+     iteration.
    - Inspect the repository before editing.
    - Execute only the packet's loop objective. Use subagents when useful.
    - Run relevant validation and collect concrete evidence.
@@ -68,4 +77,12 @@ Repeat from step 5 while the bridge returns `work_required`. Do not invoke
 `claude -p`; the active Claude Code session is the worker. On failure, inspect
 `.loopgraph/session.log` and the last entries in `.loopgraph/events.jsonl`.
 
-Report the final graph status and `${CLAUDE_PROJECT_DIR}/.loopgraph/results/`.
+The plugin Stop hook is a guardrail like Anthropic's Ralph Wiggum plugin. If the
+session tries to stop while a packet is still active, it blocks the stop and
+feeds back the same loop contract. It does not replay the whole graph. Once the
+runtime verifies completion, the scheduler unlocks the next dependency-ready
+loop and the bridge returns its packet.
+
+Report the final graph status, the visual status file at
+`${CLAUDE_PROJECT_DIR}/.loopgraph/status.md`, and
+`${CLAUDE_PROJECT_DIR}/.loopgraph/results/`.

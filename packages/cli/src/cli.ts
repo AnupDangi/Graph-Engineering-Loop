@@ -112,14 +112,14 @@ async function runGraph(options: CliOptions): Promise<number> {
       projectRoot: options.projectRoot,
       maxConcurrentLoops: options.maxConcurrency,
       projectGraphProvider,
-      hooks: files.hooks(metadata)
+      hooks: files.hooks(metadata, graph)
     });
     const result = await runtime.run(abortController.signal);
 
     if (options.json) {
       console.log(JSON.stringify(result, null, 2));
     } else {
-      printRunResult(result.status, result.results.length, files.resultsDir);
+      printRunResult(result.status, result.results.length, files.resultsDir, files.statusMarkdownPath);
     }
 
     return exitCodeForStatus(result.status);
@@ -539,12 +539,18 @@ function readCliVersion(): string {
   }
 }
 
-function printRunResult(status: GraphStatus, resultCount: number, resultsDir: string): void {
+function printRunResult(
+  status: GraphStatus,
+  resultCount: number,
+  resultsDir: string,
+  statusMarkdownPath: string
+): void {
   if (status === "completed") {
     console.log(`LoopGraph completed (${resultCount} loops).`);
   } else {
     console.log(`LoopGraph finished with status '${status}' (${resultCount} loops).`);
   }
+  console.log(`Status: ${statusMarkdownPath}`);
   console.log(`Results: ${resultsDir}`);
 }
 
