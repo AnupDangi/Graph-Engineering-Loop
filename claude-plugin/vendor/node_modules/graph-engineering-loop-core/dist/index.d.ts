@@ -1,4 +1,5 @@
 export * from "./errors/errors.js";
+export * from "./context/project-graph-provider.js";
 export * from "./runtime/completion-evaluator.js";
 export * from "./runtime/file-stores.js";
 export * from "./runtime/graph-runtime.js";

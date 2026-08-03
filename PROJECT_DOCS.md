@@ -83,14 +83,20 @@ Minimum persistent runtime structure:
 .loopgraph/
   loops.json
   state.json
+  status.json
+  status.md
   lock.json
   events.jsonl
+  context/
+    <loop-id>.json
   results/
     <loop-id>.json
     <loop-id>.md
 ```
 
-Only `.loopgraph/loops.json` should normally be authored or reviewed by users.
+Only `.loopgraph/loops.json` should normally be authored by users. `status.md`
+is a generated, human-readable live view; all other mutable files are runtime
+artifacts.
 
 ## Initial Target
 
@@ -121,6 +127,37 @@ Current readiness stance:
 - `npm run smoke:plugin` must pass against an isolated copy of the plugin before release.
 - `npm run smoke:plugin:claude` is the optional paid end-to-end namespaced-skill check and requires an authenticated Claude Code session.
 - Version tag pushes (`v*`) run `.github/workflows/release.yml` to publish npm packages and create a GitHub Release that documents Claude plugin marketplace install.
+
+## Project Graph Intelligence Roadmap
+
+Project-graph intelligence composes with the runtime through a harness-neutral
+`ProjectGraphProvider`; it does not become part of scheduler internals. The first
+implementation is an opt-in Graphify CLI provider selected with
+`--project-graph graphify`.
+
+The runtime performs graph preflight before scheduling, prepares one bounded
+context packet for each loop, includes the structured packet in the adapter
+request, and persists it at `.loopgraph/context/<loop-id>.json`. Provider output
+is never added to public `loops.json`, and the default remains no provider so
+existing adapters and graphs retain their behavior.
+
+Raw graph query output must not be copied into a remote model prompt by default.
+The built-in headless Claude adapter receives only bounded file, node, and
+community scope. Harness adapters need an explicit data-handling policy before
+consuming the complete packet; local and externally managed adapters can decide
+how to use it. Graphify installation and backend configuration remain operator
+responsibilities. Provider subprocesses disable Graphify query logging, inherit
+runtime cancellation, and reject graph paths that resolve outside the project.
+
+The implementation backlog is dogfooded as `.loopgraph/loops.json` and follows
+this sequence:
+
+1. Project graph contract and durable context packets.
+2. Graphify CLI provider and opt-in CLI selection.
+3. Graph-aware requirements compilation.
+4. Isolated worktree execution.
+5. Conflict scoring and architecture impact checks.
+6. Supervisor-controlled integration and final verification.
 
 ## Recommended Repository Structure
 
@@ -386,6 +423,12 @@ All state writes must be atomic:
 
 Append structured runtime events to `.loopgraph/events.jsonl` for debugging, recovery, audits, scheduler tracing, and future visualizations.
 
+Every state transition also atomically updates `.loopgraph/status.json` and
+`.loopgraph/status.md`. The JSON file is the machine-readable status projection.
+The Markdown file shows progress, active objectives and tasks, loop iterations,
+dependency waits, and a Mermaid DAG. Both are projections of runtime state and
+must never become a second source of truth.
+
 ## Graph Validation
 
 Before execution, validate:
@@ -625,6 +668,15 @@ claude-plugin/
 
 Do not attach a global Stop hook that blindly repeats the whole graph prompt. The runtime owns graph progression. Hooks may preserve state, add small resume context, or handle cancellation, but only after checking whether an active run exists.
 
+Within an active interactive work packet, each loop follows a bounded
+Ralph-style continuation cycle: a guarded Stop hook blocks exit and returns the
+same loop objective, tasks, completion conditions, and iteration limit. The hook
+must use Claude Code's top-level `decision: "block"` response, honor
+`stop_hook_active`, and never choose the next loop. The runtime independently
+checks structured evidence; only a verified loop completion lets the scheduler
+unlock dependency-ready work. `maxIterations` is the safety limit. Runtime
+conditions replace a text-only completion promise.
+
 Claude Code has two explicit execution modes:
 
 - Inside an interactive Claude Code plugin session, use `--adapter interactive`. One background LoopGraph supervisor publishes a work packet under `.loopgraph/bridge/`; the active session performs the work and submits a structured `LoopExecutionResult`.
@@ -637,6 +689,7 @@ The interactive bridge must:
 - Use atomic request and response files.
 - Pin every operation to an explicit project root.
 - Persist normal state, events, and loop results after every iteration.
+- Expose `.loopgraph/status.md` and `.loopgraph/status.json` in bridge responses.
 - Reject malformed submissions before releasing the supervisor.
 
 Do not build a distributed daemon in version 0.1.

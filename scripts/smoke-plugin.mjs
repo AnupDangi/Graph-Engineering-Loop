@@ -19,7 +19,7 @@ await writeFile(graphPath, `${JSON.stringify({
   name: "isolated-plugin-smoke",
   goal: "Prove the installed plugin is self-contained.",
   defaults: {
-    maxIterations: 2,
+    maxIterations: 3,
     maxConcurrentLoops: 1
   },
   loops: [
@@ -32,6 +32,18 @@ await writeFile(graphPath, `${JSON.stringify({
           type: "fileContains",
           path: "plugin-smoke.txt",
           text: "plugin smoke ok"
+        }
+      ]
+    },
+    {
+      id: "verification-worker",
+      objective: "Verify the plugin worker and create verified.txt.",
+      dependsOn: ["plugin-worker"],
+      completionConditions: [
+        {
+          type: "fileContains",
+          path: "verified.txt",
+          text: "graph transition ok"
         }
       ]
     }
@@ -67,6 +79,16 @@ const startResult = JSON.parse(start.stdout);
 if (startResult.status !== "work_required") {
   throw new Error(`Expected work_required, received ${start.stdout}`);
 }
+if (startResult.packet?.request?.loop?.id !== "plugin-worker") {
+  throw new Error(`Expected plugin-worker first, received ${start.stdout}`);
+}
+if (!startResult.statusMarkdownPath?.endsWith(".loopgraph/status.md")) {
+  throw new Error(`Work response did not expose live status paths:\n${start.stdout}`);
+}
+const runningStatus = await readFile(startResult.statusMarkdownPath, "utf8");
+if (!runningStatus.includes("🔄 running") || !runningStatus.includes("flowchart LR")) {
+  throw new Error(`Live status did not show the running dependency graph:\n${runningStatus}`);
+}
 
 const sessionHook = await runWithInput(process.execPath, [
   join(pluginRoot, "scripts", "session-hook.mjs")
@@ -75,7 +97,10 @@ const sessionHook = await runWithInput(process.execPath, [
   cwd: projectRoot
 }));
 const sessionHookOutput = JSON.parse(sessionHook.stdout);
-if (!sessionHookOutput.hookSpecificOutput?.additionalContext?.includes("plugin-worker")) {
+if (
+  !sessionHookOutput.hookSpecificOutput?.additionalContext?.includes("plugin-worker") ||
+  !sessionHookOutput.hookSpecificOutput?.additionalContext?.includes("status.md")
+) {
   throw new Error(`SessionStart hook did not restore the active loop:\n${sessionHook.stdout}`);
 }
 
@@ -87,38 +112,95 @@ const stopHook = await runWithInput(process.execPath, [
   stop_hook_active: false
 }));
 const stopHookOutput = JSON.parse(stopHook.stdout);
-if (!stopHookOutput.hookSpecificOutput?.additionalContext?.includes("still has work waiting")) {
-  throw new Error(`Stop hook did not preserve the active run:\n${stopHook.stdout}`);
+if (
+  stopHookOutput.decision !== "block" ||
+  !stopHookOutput.reason?.includes("SAME active LoopGraph workstream") ||
+  !stopHookOutput.reason?.includes("plugin-worker") ||
+  !stopHookOutput.reason?.includes("Completion conditions")
+) {
+  throw new Error(`Stop hook did not issue a Ralph-style continuation:\n${stopHook.stdout}`);
+}
+
+const repeatedStopHook = await runWithInput(process.execPath, [
+  join(pluginRoot, "scripts", "session-hook.mjs")
+], projectRoot, JSON.stringify({
+  hook_event_name: "Stop",
+  cwd: projectRoot,
+  stop_hook_active: false
+}));
+if (JSON.parse(repeatedStopHook.stdout).reason !== stopHookOutput.reason) {
+  throw new Error("Stop hook did not repeat the same active-loop contract.");
+}
+
+const guardedStopHook = await runWithInput(process.execPath, [
+  join(pluginRoot, "scripts", "session-hook.mjs")
+], projectRoot, JSON.stringify({
+  hook_event_name: "Stop",
+  cwd: projectRoot,
+  stop_hook_active: true
+}));
+if (guardedStopHook.stdout.trim() !== "") {
+  throw new Error(`Recursive Stop hook was not guarded:\n${guardedStopHook.stdout}`);
+}
+
+await writeSubmission({
+  status: "incomplete",
+  summary: "The first bounded iteration did not yet satisfy its evidence.",
+  completedTasks: [],
+  remainingWork: ["Create plugin-smoke.txt."],
+  changedFiles: []
+});
+const repeat = await submitWork();
+if (
+  repeat.status !== "work_required" ||
+  repeat.packet?.request?.loop?.id !== "plugin-worker" ||
+  repeat.packet?.request?.currentIteration !== 2 ||
+  repeat.packet?.request?.previousResult?.status !== "incomplete"
+) {
+  throw new Error(`Expected a second bounded plugin-worker iteration, received ${JSON.stringify(repeat)}`);
 }
 
 await writeFile(join(projectRoot, "plugin-smoke.txt"), "plugin smoke ok\n");
-await writeFile(submissionPath, `${JSON.stringify({
+await writeSubmission({
   status: "complete",
   summary: "Created plugin-smoke.txt through the isolated plugin bridge.",
   completedTasks: ["Created the smoke artifact."],
   remainingWork: [],
-  changedFiles: ["plugin-smoke.txt"],
-  commandsRun: [],
-  completionEvidence: [],
-  handoff: [],
-  blockedReason: null
-}, null, 2)}\n`);
+  changedFiles: ["plugin-smoke.txt"]
+});
+const transition = await submitWork();
+if (
+  transition.status !== "work_required" ||
+  transition.packet?.request?.loop?.id !== "verification-worker" ||
+  transition.packet?.request?.currentIteration !== 1
+) {
+  throw new Error(`Graph did not control the dependency transition: ${JSON.stringify(transition)}`);
+}
 
-const submit = await execFileAsync(join(pluginRoot, "bin", "loopgraph-session"), [
-  "submit",
-  "--project-root",
-  projectRoot,
-  "--file",
-  submissionPath
-], { cwd: projectRoot });
-const submitResult = JSON.parse(submit.stdout);
+await writeFile(join(projectRoot, "verified.txt"), "graph transition ok\n");
+await writeSubmission({
+  status: "complete",
+  summary: "Verified the graph-controlled transition.",
+  completedTasks: ["Verified the dependent loop."],
+  remainingWork: [],
+  changedFiles: ["verified.txt"]
+});
+const submitResult = await submitWork();
 if (submitResult.status !== "completed") {
-  throw new Error(`Expected completed, received ${submit.stdout}`);
+  throw new Error(`Expected completed, received ${JSON.stringify(submitResult)}`);
 }
 
 const state = JSON.parse(await readFile(join(projectRoot, ".loopgraph", "state.json"), "utf8"));
 if (state.status !== "completed") {
   throw new Error(`Isolated plugin state was ${state.status}`);
+}
+const finalStatus = JSON.parse(await readFile(join(projectRoot, ".loopgraph", "status.json"), "utf8"));
+if (finalStatus.completedLoops !== 2 || finalStatus.totalLoops !== 2) {
+  throw new Error(`Live status did not record both completed loops: ${JSON.stringify(finalStatus)}`);
+}
+const finalMarkdown = await readFile(join(projectRoot, ".loopgraph", "status.md"), "utf8");
+if (!finalMarkdown.includes("n0 --> n1") || !finalMarkdown.includes("[████████████] 2/2")) {
+  throw new Error(`Final graph visualization was incomplete:\n${finalMarkdown}`);
 }
 
 const cancelProjectRoot = join(tempRoot, "cancel-project");
@@ -171,8 +253,33 @@ const cancelledState = await waitForState(cancelProjectRoot, "cancelled");
 if (cancelledState.status !== "cancelled") {
   throw new Error(`Cancel smoke state was ${cancelledState.status}`);
 }
+const cancelledStatus = await readFile(join(cancelProjectRoot, ".loopgraph", "status.md"), "utf8");
+if (!cancelledStatus.includes("Graph cancelled by the operator") || !cancelledStatus.includes("🛑 cancelled")) {
+  throw new Error(`Cancelled status view was not updated:\n${cancelledStatus}`);
+}
 
 console.log(`Isolated plugin smoke passed: ${tempRoot}`);
+
+async function writeSubmission(value) {
+  await writeFile(submissionPath, `${JSON.stringify({
+    ...value,
+    commandsRun: [],
+    completionEvidence: [],
+    handoff: [],
+    blockedReason: null
+  }, null, 2)}\n`);
+}
+
+async function submitWork() {
+  const result = await execFileAsync(join(pluginRoot, "bin", "loopgraph-session"), [
+    "submit",
+    "--project-root",
+    projectRoot,
+    "--file",
+    submissionPath
+  ], { cwd: projectRoot });
+  return JSON.parse(result.stdout);
+}
 
 async function commandExists(command) {
   try {

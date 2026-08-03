@@ -12,12 +12,14 @@ import {
   type GraphStatus,
   type HarnessAdapter,
   type LoopGraph,
-  type LoopStatus
+  type LoopStatus,
+  type ProjectGraphProvider
 } from "graph-engineering-loop-core";
 import { ClaudeHeadlessAdapter } from "./adapters/claude-adapter.js";
 import { FakeAdapter } from "./adapters/fake-adapter.js";
 import { InteractiveAdapter } from "./adapters/interactive-adapter.js";
 import { StdioAdapter } from "./adapters/stdio-adapter.js";
+import { GraphifyCliProvider } from "./context/graphify-cli-provider.js";
 
 const EXIT_SUCCESS = 0;
 const EXIT_RUNTIME_FAILURE = 1;
@@ -36,6 +38,9 @@ interface CliOptions {
   claudePermissionMode?: string;
   claudeMaxBudgetUsd?: string;
   claudeModel?: string;
+  projectGraph: "none" | "graphify";
+  graphifyPath?: string;
+  graphifyGraphPath?: string;
   projectRoot: string;
   maxConcurrency?: number;
   dryRun: boolean;
@@ -82,6 +87,7 @@ async function main(args: string[]): Promise<number> {
 
 async function runGraph(options: CliOptions): Promise<number> {
   const adapter = createAdapter(options.adapter, options);
+  const projectGraphProvider = createProjectGraphProvider(options);
   const graph = await resolveGraphInput(options, adapter);
   const files = new LoopGraphFiles(options.projectRoot);
   const metadata = createRunMetadata(graph, options.projectRoot);
@@ -105,14 +111,15 @@ async function runGraph(options: CliOptions): Promise<number> {
       adapter,
       projectRoot: options.projectRoot,
       maxConcurrentLoops: options.maxConcurrency,
-      hooks: files.hooks(metadata)
+      projectGraphProvider,
+      hooks: files.hooks(metadata, graph)
     });
     const result = await runtime.run(abortController.signal);
 
     if (options.json) {
       console.log(JSON.stringify(result, null, 2));
     } else {
-      printRunResult(result.status, result.results.length, files.resultsDir);
+      printRunResult(result.status, result.results.length, files.resultsDir, files.statusMarkdownPath);
     }
 
     return exitCodeForStatus(result.status);
@@ -341,9 +348,21 @@ function createAdapter(name: CliOptions["adapter"], options: CliOptions): Harnes
   return new FakeAdapter();
 }
 
+function createProjectGraphProvider(options: CliOptions): ProjectGraphProvider | undefined {
+  if (options.projectGraph === "graphify") {
+    return new GraphifyCliProvider({
+      graphifyPath: options.graphifyPath,
+      graphPath: options.graphifyGraphPath
+    });
+  }
+
+  return undefined;
+}
+
 function parseArgs(args: string[]): CliOptions {
   const options: CliOptions = {
     adapter: "fake",
+    projectGraph: "none",
     projectRoot: process.cwd(),
     dryRun: false,
     json: false
@@ -380,6 +399,20 @@ function parseArgs(args: string[]): CliOptions {
         break;
       case "--claude-model":
         options.claudeModel = requireValue(args, ++index, "--claude-model");
+        break;
+      case "--project-graph": {
+        const projectGraph = requireValue(args, ++index, "--project-graph");
+        if (projectGraph !== "none" && projectGraph !== "graphify") {
+          throw new Error("--project-graph must be 'none' or 'graphify'");
+        }
+        options.projectGraph = projectGraph;
+        break;
+      }
+      case "--graphify-path":
+        options.graphifyPath = requireValue(args, ++index, "--graphify-path");
+        break;
+      case "--graphify-graph":
+        options.graphifyGraphPath = requireValue(args, ++index, "--graphify-graph");
         break;
       case "--project-root":
         options.projectRoot = resolve(requireValue(args, ++index, "--project-root"));
@@ -484,6 +517,9 @@ Run options:
   --claude-permission-mode <mode>
   --claude-max-budget-usd <amount>
   --claude-model <model>
+  --project-graph <none|graphify>   Enrich loops with project-graph context
+  --graphify-path <path>            Defaults to graphify on PATH
+  --graphify-graph <path>           Query an existing project-local graph snapshot
   --dry-run
   --json
 
@@ -503,12 +539,18 @@ function readCliVersion(): string {
   }
 }
 
-function printRunResult(status: GraphStatus, resultCount: number, resultsDir: string): void {
+function printRunResult(
+  status: GraphStatus,
+  resultCount: number,
+  resultsDir: string,
+  statusMarkdownPath: string
+): void {
   if (status === "completed") {
     console.log(`LoopGraph completed (${resultCount} loops).`);
   } else {
     console.log(`LoopGraph finished with status '${status}' (${resultCount} loops).`);
   }
+  console.log(`Status: ${statusMarkdownPath}`);
   console.log(`Results: ${resultsDir}`);
 }
 

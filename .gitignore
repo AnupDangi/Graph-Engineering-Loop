@@ -17,3 +17,8 @@ tmp/
 .loopgraph/lock.json
 .loopgraph/events.jsonl
 .loopgraph/results/
+.loopgraph/context/
+.loopgraph/status.json
+.loopgraph/status.md
+.loopgraph/bridge/
+.loopgraph/session.log

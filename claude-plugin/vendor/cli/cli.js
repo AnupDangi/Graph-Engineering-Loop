@@ -7,6 +7,7 @@ import { ClaudeHeadlessAdapter } from "./adapters/claude-adapter.js";
 import { FakeAdapter } from "./adapters/fake-adapter.js";
 import { InteractiveAdapter } from "./adapters/interactive-adapter.js";
 import { StdioAdapter } from "./adapters/stdio-adapter.js";
+import { GraphifyCliProvider } from "./context/graphify-cli-provider.js";
 const EXIT_SUCCESS = 0;
 const EXIT_RUNTIME_FAILURE = 1;
 const EXIT_COMPLETED_WITH_BLOCKS = 2;
@@ -45,6 +46,7 @@ async function main(args) {
 }
 async function runGraph(options) {
     const adapter = createAdapter(options.adapter, options);
+    const projectGraphProvider = createProjectGraphProvider(options);
     const graph = await resolveGraphInput(options, adapter);
     const files = new LoopGraphFiles(options.projectRoot);
     const metadata = createRunMetadata(graph, options.projectRoot);
@@ -64,14 +66,15 @@ async function runGraph(options) {
             adapter,
             projectRoot: options.projectRoot,
             maxConcurrentLoops: options.maxConcurrency,
-            hooks: files.hooks(metadata)
+            projectGraphProvider,
+            hooks: files.hooks(metadata, graph)
         });
         const result = await runtime.run(abortController.signal);
         if (options.json) {
             console.log(JSON.stringify(result, null, 2));
         }
         else {
-            printRunResult(result.status, result.results.length, files.resultsDir);
+            printRunResult(result.status, result.results.length, files.resultsDir, files.statusMarkdownPath);
         }
         return exitCodeForStatus(result.status);
     }
@@ -267,9 +270,19 @@ function createAdapter(name, options) {
     }
     return new FakeAdapter();
 }
+function createProjectGraphProvider(options) {
+    if (options.projectGraph === "graphify") {
+        return new GraphifyCliProvider({
+            graphifyPath: options.graphifyPath,
+            graphPath: options.graphifyGraphPath
+        });
+    }
+    return undefined;
+}
 function parseArgs(args) {
     const options = {
         adapter: "fake",
+        projectGraph: "none",
         projectRoot: process.cwd(),
         dryRun: false,
         json: false
@@ -303,6 +316,20 @@ function parseArgs(args) {
                 break;
             case "--claude-model":
                 options.claudeModel = requireValue(args, ++index, "--claude-model");
+                break;
+            case "--project-graph": {
+                const projectGraph = requireValue(args, ++index, "--project-graph");
+                if (projectGraph !== "none" && projectGraph !== "graphify") {
+                    throw new Error("--project-graph must be 'none' or 'graphify'");
+                }
+                options.projectGraph = projectGraph;
+                break;
+            }
+            case "--graphify-path":
+                options.graphifyPath = requireValue(args, ++index, "--graphify-path");
+                break;
+            case "--graphify-graph":
+                options.graphifyGraphPath = requireValue(args, ++index, "--graphify-graph");
                 break;
             case "--project-root":
                 options.projectRoot = resolve(requireValue(args, ++index, "--project-root"));
@@ -396,6 +423,9 @@ Run options:
   --claude-permission-mode <mode>
   --claude-max-budget-usd <amount>
   --claude-model <model>
+  --project-graph <none|graphify>   Enrich loops with project-graph context
+  --graphify-path <path>            Defaults to graphify on PATH
+  --graphify-graph <path>           Query an existing project-local graph snapshot
   --dry-run
   --json
 
@@ -412,13 +442,14 @@ function readCliVersion() {
         return "unknown";
     }
 }
-function printRunResult(status, resultCount, resultsDir) {
+function printRunResult(status, resultCount, resultsDir, statusMarkdownPath) {
     if (status === "completed") {
         console.log(`LoopGraph completed (${resultCount} loops).`);
     }
     else {
         console.log(`LoopGraph finished with status '${status}' (${resultCount} loops).`);
     }
+    console.log(`Status: ${statusMarkdownPath}`);
     console.log(`Results: ${resultsDir}`);
 }
 function exitCodeForStatus(status) {

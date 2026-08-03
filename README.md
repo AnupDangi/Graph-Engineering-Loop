@@ -9,19 +9,21 @@ The core format and runtime are harness-neutral. The first real harness target i
 
 ## Status
 
-This is an early `0.2.1` implementation. It includes:
+This is an early `0.2.2` implementation. It includes:
 
 - Version 1 graph validation.
 - Deterministic dependency scheduling.
 - Completion evaluators for commands, file existence, file contents, assertions, and aggregate `all`.
 - Atomic `.loopgraph/state.json` writes.
 - `.loopgraph/lock.json`, `.loopgraph/events.jsonl`, and `.loopgraph/results/`.
+- Generated live `.loopgraph/status.md` graph visualization and `.loopgraph/status.json` status API.
 - CLI commands: `run`, `cancel`, and `validate`.
 - Fake adapter for real local smoke tests.
 - Claude Code headless adapter using `claude -p`.
 - Claude Code interactive adapter that delegates loop work to the active session without nested Claude processes.
 - Generic stdio adapter for any harness wrapper that can read JSON from stdin and write JSON to stdout.
 - Self-contained Claude Code plugin with a vendored runtime, lifecycle hooks, and marketplace metadata.
+- Optional project-graph context providers with durable per-loop context packets.
 
 Readiness today:
 
@@ -61,8 +63,8 @@ npm run smoke:plugin
 Pushes to `main` run CI only. Publishing happens when you push a version tag:
 
 ```bash
-git tag v0.2.1
-git push origin v0.2.1
+git tag v0.2.2
+git push origin v0.2.2
 ```
 
 That publishes `graph-engineering-loop-core` then `graph-engineering-loop` to npmjs, and creates a GitHub Release with Claude plugin install notes.  
@@ -103,6 +105,81 @@ npx graph-engineering-loop run examples/fake/loops.json \
   --adapter stdio \
   --adapter-command "node examples/stdio-adapter.mjs"
 ```
+
+Install Graphify and confirm the CLI is available:
+
+```bash
+uv tool install graphifyy
+graphify --version
+```
+
+Run headless Claude with local Graphify context enrichment:
+
+```bash
+npx graph-engineering-loop run .loopgraph/loops.json \
+  --adapter claude \
+  --claude-permission-mode acceptEdits \
+  --project-graph graphify
+```
+
+Or pass the full context packet to an explicitly managed stdio adapter:
+
+```bash
+npx graph-engineering-loop run .loopgraph/loops.json \
+  --adapter stdio \
+  --adapter-command "node /absolute/path/to/adapter.mjs" \
+  --project-graph graphify
+```
+
+The provider performs an on-device, code-only initial build or incremental
+update of `graphify-out/graph.json`, queries scoped context for each loop, and
+writes the full packet to `.loopgraph/context/<loop-id>.json`. Headless Claude
+receives only bounded file, node, and community scope—not raw Graphify query
+output. Stdio and interactive adapters receive the complete structured request,
+so enable Graphify only for adapters you trust with repository-derived context.
+
+LoopGraph disables Graphify's persistent query log for provider subprocesses.
+Review `graphify-out/` before committing it; it is a source-derived project map.
+
+### Test Graphify on a real project
+
+From the target project's root:
+
+```bash
+# 1. Install both CLIs.
+npm install -g graph-engineering-loop
+uv tool install graphifyy
+
+# 2. Confirm the project graph and LoopGraph input are valid.
+graphify --version
+graph-engineering-loop validate .loopgraph/loops.json --project-root "$PWD"
+
+# 3. Preview scheduling without executing workers or Graphify.
+graph-engineering-loop run .loopgraph/loops.json \
+  --project-root "$PWD" \
+  --adapter claude \
+  --project-graph graphify \
+  --dry-run
+
+# 4. Run for real. This builds graphify-out/ on the first run and updates it later.
+graph-engineering-loop run .loopgraph/loops.json \
+  --project-root "$PWD" \
+  --adapter claude \
+  --claude-permission-mode acceptEdits \
+  --project-graph graphify
+```
+
+After the run, verify:
+
+```bash
+test -f graphify-out/graph.json
+ls .loopgraph/context/*.json
+node -e 'const s=require("./.loopgraph/state.json"); console.log(s.status)'
+```
+
+Expected results are a Graphify graph, one context packet per started loop,
+normal loop results under `.loopgraph/results/`, and a terminal state. Use
+`graph-engineering-loop cancel --project-root "$PWD"` to test cancellation.
 
 Cancel the active project run:
 
@@ -147,6 +224,20 @@ background supervisor publishes one request at a time under
 `.loopgraph/bridge/`; the skill submits structured evidence back to the runtime.
 This avoids recursive Claude Code launches. Direct CLI and CI usage can still
 select `--adapter claude` to use headless `claude -p` workers.
+
+Each graph node runs as a bounded Ralph-style loop in that session. When Claude
+tries to stop while work is pending, the guarded Stop hook returns the same
+active loop contract. The model keeps working from the current repository state;
+the runtime verifies completion evidence and alone decides when dependencies
+unlock the next loop. There is no new command and no text-only completion
+promise. `maxIterations` remains the safety limit. This design follows the
+[official Ralph Wiggum plugin](https://github.com/anthropics/claude-code/tree/main/plugins/ralph-wiggum),
+but scopes repetition to one graph node at a time.
+
+During any run, open `.loopgraph/status.md` to see the Mermaid dependency graph,
+progress, active objective and tasks, current iteration, and blocked/waiting
+loops. CLI completion output prints this path, and plugin work packets expose
+both the Markdown view and `.loopgraph/status.json`.
 
 Release checks:
 
@@ -246,7 +337,11 @@ Runtime files:
 ```text
 .loopgraph/
   loops.json
+  context/
+    <loop-id>.json
   state.json
+  status.json
+  status.md
   lock.json
   events.jsonl
   results/
@@ -255,6 +350,7 @@ Runtime files:
 ```
 
 Commit `.loopgraph/loops.json` when it represents shared project intent. Do not commit mutable runtime files.
+Treat `graphify-out/` as source-derived data and review it before deciding to commit it.
 
 ## Package Names
 

@@ -23,6 +23,8 @@ const currentPath = join(bridgeDir, "current.json");
 const statePath = join(loopgraphDir, "state.json");
 const lockPath = join(loopgraphDir, "lock.json");
 const logPath = join(loopgraphDir, "session.log");
+const statusJsonPath = join(loopgraphDir, "status.json");
+const statusMarkdownPath = join(loopgraphDir, "status.md");
 const loopgraphBin = resolve(import.meta.dirname, "..", "bin", "loopgraph");
 
 try {
@@ -119,6 +121,8 @@ async function waitForWork(notBefore = 0, previousRequestId) {
         status: "work_required",
         projectRoot,
         resultsDir: join(loopgraphDir, "results"),
+        statusJsonPath,
+        statusMarkdownPath,
         packet
       };
     }
@@ -133,6 +137,8 @@ async function waitForWork(notBefore = 0, previousRequestId) {
         status: state.status,
         projectRoot,
         resultsDir: join(loopgraphDir, "results"),
+        statusJsonPath,
+        statusMarkdownPath,
         state
       };
     }
@@ -147,6 +153,8 @@ function readStatus() {
   return {
     projectRoot,
     resultsDir: join(loopgraphDir, "results"),
+    statusJsonPath,
+    statusMarkdownPath,
     state: readJson(statePath),
     activeRequest: readJson(currentPath),
     lock: readActiveLock(),
