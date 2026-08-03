@@ -18,28 +18,16 @@ This is an early `0.2.2` implementation. It includes:
 - `.loopgraph/lock.json`, `.loopgraph/events.jsonl`, and `.loopgraph/results/`.
 - Generated live `.loopgraph/status.md` graph visualization and `.loopgraph/status.json` status API.
 - CLI commands: `run`, `cancel`, and `validate`.
-- Fake adapter for real local smoke tests.
+- Deterministic fake adapter for trying the runtime locally.
 - Claude Code headless adapter using `claude -p`.
 - Claude Code interactive adapter that delegates loop work to the active session without nested Claude processes.
 - Generic stdio adapter for any harness wrapper that can read JSON from stdin and write JSON to stdout.
 - Self-contained Claude Code plugin with a vendored runtime, lifecycle hooks, and marketplace metadata.
 - Optional project-graph context providers with durable per-loop context packets.
 
-Readiness today:
-
-- Core runtime, fake adapter, and stdio adapter are covered by automated tests.
-- Claude adapter is locally smoke-verified with `npm run smoke:claude`.
-- The plugin artifact is tested from an isolated temp copy with `npm run smoke:plugin`; it does not require an npm package or global `loopgraph`.
-- The optional real namespaced-skill check is `npm run smoke:plugin:claude` and requires Claude Code authentication.
-- Packed CLI artifacts are verified from a clean temporary directory with `npm run smoke:pack`.
-
 ## Run from source
 
-There is currently no supported npm/NPX release. Do not install
-`graph-engineering-loop-workspace`; it is an accidentally published monorepo
-package and contains no executable.
-
-Use the public repository directly:
+The CLI is currently installed from the public repository:
 
 ```bash
 git clone https://github.com/AnupDangi/Graph-Engineering-Loop.git
@@ -49,25 +37,6 @@ npm run build
 npm run loopgraph -- --version
 npm run loopgraph -- run examples/fake/loops.json --adapter fake
 ```
-
-For development:
-
-```bash
-npm install
-npm test
-npm run typecheck
-npm run build
-npm run smoke:fake
-npm run smoke:plugin
-```
-
-To test the real Claude adapter locally:
-
-```bash
-npm run smoke:claude
-```
-
-This creates a fresh temp project, invokes Claude Code headless mode, may use Claude API credits, is capped at `$1.00`, and verifies that Claude creates `tmp/claude-smoke.txt`.
 
 ## Quick Start
 
@@ -181,14 +150,14 @@ npm run loopgraph -- cancel
 
 ## Claude Code Plugin
 
-This repo also includes project-local Claude commands for development:
+The repository includes project-local Claude commands:
 
 ```text
 /loop-graph <prompt-or-path>
 /cancel-loop-graph
 ```
 
-For local plugin testing:
+Load the plugin directly from the cloned repository:
 
 ```bash
 npm run build:plugin
@@ -202,7 +171,7 @@ Then use:
 /graph-engineering-loop:cancel-loop-graph
 ```
 
-For GitHub marketplace installation after this repository is pushed:
+Or install it through the Claude Code marketplace:
 
 ```text
 /plugin marketplace add AnupDangi/Graph-Engineering-Loop
@@ -212,7 +181,7 @@ For GitHub marketplace installation after this repository is pushed:
 Claude Code plugins are namespaced by plugin name, so the skills are intentionally exposed as `/graph-engineering-loop:loop-graph` and `/graph-engineering-loop:cancel-loop-graph`.
 
 The installed skill uses the active Claude Code session as the loop worker. A
-background supervisor publishes one request at a time under
+background supervisor writes one request at a time under
 `.loopgraph/bridge/`; the skill submits structured evidence back to the runtime.
 This avoids recursive Claude Code launches. Direct CLI and CI usage can still
 select `--adapter claude` to use headless `claude -p` workers.
@@ -230,17 +199,6 @@ During any run, open `.loopgraph/status.md` to see the Mermaid dependency graph,
 progress, active objective and tasks, current iteration, and blocked/waiting
 loops. CLI completion output prints this path, and plugin work packets expose
 both the Markdown view and `.loopgraph/status.json`.
-
-Release checks:
-
-```bash
-npm run smoke:plugin
-npm run smoke:plugin:claude
-```
-
-The first command is deterministic and verifies an isolated, self-contained
-plugin plus hooks and cancellation. The second invokes the real namespaced skill,
-may use Claude credits, and is capped at `$2.00`.
 
 ## Generic Harness Adapter
 
