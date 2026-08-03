@@ -21,3 +21,4 @@ export declare class ClaudeHeadlessAdapter implements HarnessAdapter {
     executeLoop(request: LoopExecutionRequest, signal: AbortSignal): Promise<LoopExecutionResult>;
     shutdown(): Promise<void>;
 }
+export declare function buildClaudeLoopPrompt(request: LoopExecutionRequest): string;

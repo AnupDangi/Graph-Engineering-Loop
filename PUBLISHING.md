@@ -10,6 +10,8 @@ Only `graph-engineering-loop` and `graph-engineering-loop-core` are published.
 The repo root (`graph-engineering-loop-workspace`) is `private: true` and is never published.  
 `graph-engineering-loop@0.2.0` accidentally published the monorepo root without a
 binary. It is deprecated; `0.2.1` is the repaired CLI release.
+As of the `0.2.1` preparation, `graph-engineering-loop-core` is not yet present
+on npm and must publish successfully before the CLI package.
 
 ## Tag publish
 
@@ -79,7 +81,14 @@ git push origin v0.2.1
 npm run pack:dry
 npm run smoke:pack
 node scripts/verify-release-version.mjs v0.2.1
+npm audit
+npm view graph-engineering-loop version
+npm view graph-engineering-loop-core version || true
 ```
+
+Before committing the release, also confirm `git status` contains no `.env`,
+credential, npm debug log, `.loopgraph/context/`, or unintended `graphify-out/`
+artifacts.
 
 ## Claude plugin “push”
 

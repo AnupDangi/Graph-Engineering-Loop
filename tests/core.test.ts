@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -6,11 +6,14 @@ import assert from "node:assert/strict";
 import {
   GraphRuntime,
   GraphValidationError,
+  LoopGraphFiles,
   assertValidLoopGraph,
+  createRunMetadata,
   type HarnessAdapter,
   type LoopExecutionRequest,
   type LoopExecutionResult,
-  type LoopGraph
+  type LoopGraph,
+  type ProjectGraphProvider
 } from "../packages/core/src/index.ts";
 
 test("validates a minimal graph", () => {
@@ -154,6 +157,110 @@ test("blocks a loop when maxIterations is exhausted and blocks downstream loops"
   assert.deepEqual(adapter.started, ["foundation", "foundation"]);
 });
 
+test("prepares and persists project graph context for each loop", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-context-"));
+  const graph = makeGraph([
+    {
+      id: "foundation",
+      objective: "Create a foundation file.",
+      dependsOn: [],
+      completionConditions: [{ type: "fileExists", path: "foundation.txt" }]
+    }
+  ]);
+  const adapter = new ScriptedAdapter({
+    foundation: async (request) => {
+      assert.equal(request.projectGraphContext?.provider, "test-graph-provider");
+      assert.deepEqual(request.projectGraphContext?.relevantFiles, ["packages/core/src/index.ts"]);
+      await writeFile(join(projectRoot, "foundation.txt"), "ok");
+    }
+  });
+  const calls: string[] = [];
+  const projectGraphProvider: ProjectGraphProvider = {
+    name: "test-graph-provider",
+    async initialize(root) {
+      assert.equal(root, projectRoot);
+      calls.push("initialize");
+    },
+    async ensureCurrent() {
+      calls.push("ensureCurrent");
+      return {
+        provider: this.name,
+        generatedAt: "2026-08-03T00:00:00.000Z"
+      };
+    },
+    async query(request) {
+      calls.push(`query:${request.loop.id}`);
+      return {
+        provider: this.name,
+        query: request.loop.objective,
+        generatedAt: "2026-08-03T00:00:00.000Z",
+        content: "foundation context",
+        communities: ["core"],
+        entryNodes: ["GraphRuntime"],
+        relevantFiles: ["packages/core/src/index.ts"],
+        estimatedWriteFiles: []
+      };
+    },
+    async shutdown() {
+      calls.push("shutdown");
+    }
+  };
+  const files = new LoopGraphFiles(projectRoot);
+  const runtime = new GraphRuntime({
+    graph,
+    adapter,
+    projectRoot,
+    projectGraphProvider,
+    hooks: files.hooks(createRunMetadata(graph, projectRoot))
+  });
+
+  const result = await runtime.run();
+
+  assert.equal(result.status, "completed");
+  assert.deepEqual(calls, ["initialize", "ensureCurrent", "query:foundation", "shutdown"]);
+  const persisted = JSON.parse(
+    await readFile(join(projectRoot, ".loopgraph/context/foundation.json"), "utf8")
+  ) as { provider: string; relevantFiles: string[] };
+  assert.equal(persisted.provider, "test-graph-provider");
+  assert.deepEqual(persisted.relevantFiles, ["packages/core/src/index.ts"]);
+});
+
+test("does not shut down an adapter that never initialized", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-provider-failure-"));
+  const graph = makeGraph([
+    {
+      id: "foundation",
+      objective: "Create a foundation file.",
+      dependsOn: [],
+      completionConditions: [{ type: "fileExists", path: "foundation.txt" }]
+    }
+  ]);
+  const adapter = new ScriptedAdapter({});
+  let providerShutdowns = 0;
+  const projectGraphProvider: ProjectGraphProvider = {
+    name: "failing-provider",
+    async initialize() {
+      return undefined;
+    },
+    async ensureCurrent() {
+      throw new Error("preflight failed");
+    },
+    async query() {
+      throw new Error("query should not run");
+    },
+    async shutdown() {
+      providerShutdowns += 1;
+    }
+  };
+  const runtime = new GraphRuntime({ graph, adapter, projectRoot, projectGraphProvider });
+
+  await assert.rejects(runtime.run(), /preflight failed/);
+
+  assert.equal(adapter.initializeCalls, 0);
+  assert.equal(adapter.shutdownCalls, 0);
+  assert.equal(providerShutdowns, 1);
+});
+
 function makeGraph(
   loops: LoopGraph["loops"],
   defaults: LoopGraph["defaults"] = { maxIterations: 3, maxConcurrentLoops: 2 }
@@ -177,10 +284,13 @@ class ScriptedAdapter implements HarnessAdapter {
     supportsIsolatedWorktrees: false
   };
   readonly started: string[] = [];
+  initializeCalls = 0;
+  shutdownCalls = 0;
 
   constructor(private readonly scripts: Record<string, (request: LoopExecutionRequest) => Promise<void>>) {}
 
   async initialize(): Promise<void> {
+    this.initializeCalls += 1;
     return undefined;
   }
 
@@ -203,6 +313,7 @@ class ScriptedAdapter implements HarnessAdapter {
   }
 
   async shutdown(): Promise<void> {
+    this.shutdownCalls += 1;
     return undefined;
   }
 }

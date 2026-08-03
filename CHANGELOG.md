@@ -2,6 +2,10 @@
 
 ## 0.2.1
 
+- Added an opt-in, harness-neutral project graph provider boundary.
+- Added a Graphify CLI provider with code-only preflight, incremental updates, scoped loop queries, cancellation, path containment, and disabled query logging.
+- Added durable per-loop graph context packets under `.loopgraph/context/`.
+- Added bounded graph-derived file/node/community scope to headless Claude prompts while omitting raw query output.
 - Repaired the npm release after `0.2.0` accidentally published the monorepo root without a CLI executable.
 - Restored a private, non-publishable workspace root.
 - Added production `--help` and `--version` CLI entry points.

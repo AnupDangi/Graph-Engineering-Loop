@@ -109,6 +109,7 @@ export interface LoopExecutionRequest {
   maxIterations: number;
   previousResult?: LoopExecutionResult;
   projectRoot: string;
+  projectGraphContext?: import("../context/project-graph-provider.js").ProjectGraphContext;
 }
 
 export type AdapterLoopStatus = "complete" | "incomplete" | "blocked" | "failed";

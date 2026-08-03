@@ -1,5 +1,9 @@
 import { assertValidLoopGraph } from "../schema/validation.js";
 import type {
+  ProjectGraphContext,
+  ProjectGraphProvider
+} from "../context/project-graph-provider.js";
+import type {
   ConditionEvidence,
   GraphStatus,
   HarnessAdapter,
@@ -29,12 +33,14 @@ export interface GraphRuntimeOptions {
   adapter: HarnessAdapter;
   projectRoot: string;
   maxConcurrentLoops?: number;
+  projectGraphProvider?: ProjectGraphProvider;
   hooks?: GraphRuntimeHooks;
 }
 
 export interface GraphRuntimeHooks {
   onGraphStarted?(result: GraphRunSnapshot): Promise<void> | void;
   onLoopStarted?(event: LoopStartedEvent): Promise<void> | void;
+  onLoopContextPrepared?(event: LoopContextPreparedEvent): Promise<void> | void;
   onConditionChecked?(event: ConditionCheckedEvent): Promise<void> | void;
   onLoopCompleted?(event: LoopCompletedEvent): Promise<void> | void;
   onLoopBlocked?(event: LoopCompletedEvent): Promise<void> | void;
@@ -49,6 +55,11 @@ export interface GraphRunSnapshot {
 export interface LoopStartedEvent {
   loopId: string;
   iteration: number;
+}
+
+export interface LoopContextPreparedEvent {
+  loopId: string;
+  context: ProjectGraphContext;
 }
 
 export interface ConditionCheckedEvent {
@@ -74,6 +85,7 @@ export class GraphRuntime {
   private readonly states = new Map<string, LoopRuntimeState>();
   private readonly results = new Map<string, LoopResult>();
   private readonly maxConcurrentLoops: number;
+  private readonly projectGraphProvider?: ProjectGraphProvider;
   private readonly hooks: GraphRuntimeHooks;
 
   constructor(options: GraphRuntimeOptions) {
@@ -85,6 +97,7 @@ export class GraphRuntime {
       options.maxConcurrentLoops ??
       this.graph.defaults?.maxConcurrentLoops ??
       DEFAULT_MAX_CONCURRENT_LOOPS;
+    this.projectGraphProvider = options.projectGraphProvider;
     this.hooks = options.hooks ?? {};
 
     for (const loop of this.graph.loops) {
@@ -97,14 +110,24 @@ export class GraphRuntime {
   }
 
   async run(signal = new AbortController().signal): Promise<GraphRunResult> {
-    await this.adapter.initialize({
-      projectRoot: this.projectRoot,
-      graph: this.graph
-    });
-
     const running = new Map<string, Promise<void>>();
+    let adapterInitialized = false;
+    let providerInitialized = false;
+    let runError: unknown;
 
     try {
+      if (this.projectGraphProvider !== undefined) {
+        await this.projectGraphProvider.initialize(this.projectRoot);
+        providerInitialized = true;
+        await this.projectGraphProvider.ensureCurrent({ incremental: true, signal });
+      }
+
+      await this.adapter.initialize({
+        projectRoot: this.projectRoot,
+        graph: this.graph
+      });
+      adapterInitialized = true;
+
       this.refreshStatuses();
       await this.hooks.onGraphStarted?.(this.toRunSnapshot("running"));
 
@@ -141,8 +164,24 @@ export class GraphRuntime {
       const result = this.toRunResult();
       await this.hooks.onGraphFinished?.(result);
       return result;
+    } catch (error) {
+      runError = error;
+      throw error;
     } finally {
-      await this.adapter.shutdown();
+      const shutdowns: Promise<void>[] = [];
+      if (adapterInitialized) {
+        shutdowns.push(this.adapter.shutdown());
+      }
+      if (providerInitialized && this.projectGraphProvider !== undefined) {
+        shutdowns.push(this.projectGraphProvider.shutdown());
+      }
+      const shutdownResults = await Promise.allSettled(shutdowns);
+      const rejected = shutdownResults.find(
+        (result): result is PromiseRejectedResult => result.status === "rejected"
+      );
+      if (runError === undefined && rejected !== undefined) {
+        throw rejected.reason;
+      }
     }
   }
 
@@ -150,6 +189,7 @@ export class GraphRuntime {
     const state = this.states.get(loop.id)!;
     const maxIterations = loop.maxIterations ?? this.graph.defaults?.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     let previousResult: LoopExecutionResult | undefined;
+    const projectGraphContext = await this.prepareProjectGraphContext(loop, signal);
 
     while (state.currentIteration < maxIterations) {
       if (signal.aborted) {
@@ -173,7 +213,8 @@ export class GraphRuntime {
             currentIteration: state.currentIteration,
             maxIterations,
             previousResult,
-            projectRoot: this.projectRoot
+            projectRoot: this.projectRoot,
+            projectGraphContext
           },
           signal
         );
@@ -242,6 +283,26 @@ export class GraphRuntime {
     };
     this.results.set(loop.id, state.result);
     await this.hooks.onLoopBlocked?.({ loopId: loop.id, result: state.result });
+  }
+
+  private async prepareProjectGraphContext(
+    loop: LoopDefinition,
+    signal: AbortSignal
+  ): Promise<ProjectGraphContext | undefined> {
+    if (this.projectGraphProvider === undefined) {
+      return undefined;
+    }
+
+    const context = await this.projectGraphProvider.query(
+      {
+        graph: this.graph,
+        loop,
+        dependencyResults: this.getDependencyResults(loop)
+      },
+      signal
+    );
+    await this.hooks.onLoopContextPrepared?.({ loopId: loop.id, context });
+    return context;
   }
 
   private toLoopResult(

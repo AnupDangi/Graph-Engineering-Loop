@@ -29,6 +29,13 @@ The loop skill uses the current Claude Code session as the worker:
 No nested `claude -p` process is started by the plugin. The separate headless
 adapter remains available for direct CLI and CI use.
 
+Graphify context is currently a standalone CLI opt-in. The plugin's simple
+`/loop-graph` interface does not automatically install or enable Graphify. To
+test Graphify with Claude headless, run the packaged CLI directly with
+`--adapter claude --project-graph graphify`; see the repository README for the
+full project test flow. This keeps plugin execution free of unexpected external
+tool installation and indexing.
+
 Lifecycle hooks add concise active-run context on session start and give Claude
 one guarded continuation when it tries to stop with a work packet still pending.
 They never restart or replay the graph.

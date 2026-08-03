@@ -85,6 +85,8 @@ Minimum persistent runtime structure:
   state.json
   lock.json
   events.jsonl
+  context/
+    <loop-id>.json
   results/
     <loop-id>.json
     <loop-id>.md
@@ -121,6 +123,37 @@ Current readiness stance:
 - `npm run smoke:plugin` must pass against an isolated copy of the plugin before release.
 - `npm run smoke:plugin:claude` is the optional paid end-to-end namespaced-skill check and requires an authenticated Claude Code session.
 - Version tag pushes (`v*`) run `.github/workflows/release.yml` to publish npm packages and create a GitHub Release that documents Claude plugin marketplace install.
+
+## Project Graph Intelligence Roadmap
+
+Project-graph intelligence composes with the runtime through a harness-neutral
+`ProjectGraphProvider`; it does not become part of scheduler internals. The first
+implementation is an opt-in Graphify CLI provider selected with
+`--project-graph graphify`.
+
+The runtime performs graph preflight before scheduling, prepares one bounded
+context packet for each loop, includes the structured packet in the adapter
+request, and persists it at `.loopgraph/context/<loop-id>.json`. Provider output
+is never added to public `loops.json`, and the default remains no provider so
+existing adapters and graphs retain their behavior.
+
+Raw graph query output must not be copied into a remote model prompt by default.
+The built-in headless Claude adapter receives only bounded file, node, and
+community scope. Harness adapters need an explicit data-handling policy before
+consuming the complete packet; local and externally managed adapters can decide
+how to use it. Graphify installation and backend configuration remain operator
+responsibilities. Provider subprocesses disable Graphify query logging, inherit
+runtime cancellation, and reject graph paths that resolve outside the project.
+
+The implementation backlog is dogfooded as `.loopgraph/loops.json` and follows
+this sequence:
+
+1. Project graph contract and durable context packets.
+2. Graphify CLI provider and opt-in CLI selection.
+3. Graph-aware requirements compilation.
+4. Isolated worktree execution.
+5. Conflict scoring and architecture impact checks.
+6. Supervisor-controlled integration and final verification.
 
 ## Recommended Repository Structure
 

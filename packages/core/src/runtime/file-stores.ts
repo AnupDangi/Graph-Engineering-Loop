@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import type { GraphRunResult, GraphRunSnapshot, GraphRuntimeHooks, LoopCompletedEvent } from "./graph-runtime.js";
 import type { GraphStatus, LoopGraph, LoopResult } from "../schema/types.js";
+import type { ProjectGraphContext } from "../context/project-graph-provider.js";
 
 export interface RunMetadata {
   runId: string;
@@ -34,6 +35,7 @@ export interface LockFile {
 export class LoopGraphFiles {
   readonly loopgraphDir: string;
   readonly resultsDir: string;
+  readonly contextDir: string;
   readonly statePath: string;
   readonly lockPath: string;
   readonly eventsPath: string;
@@ -41,6 +43,7 @@ export class LoopGraphFiles {
   constructor(readonly projectRoot: string) {
     this.loopgraphDir = join(projectRoot, ".loopgraph");
     this.resultsDir = join(this.loopgraphDir, "results");
+    this.contextDir = join(this.loopgraphDir, "context");
     this.statePath = join(this.loopgraphDir, "state.json");
     this.lockPath = join(this.loopgraphDir, "lock.json");
     this.eventsPath = join(this.loopgraphDir, "events.jsonl");
@@ -108,6 +111,11 @@ export class LoopGraphFiles {
     await atomicWriteText(join(this.resultsDir, `${result.loopId}.md`), formatLoopResultMarkdown(result));
   }
 
+  async writeLoopContext(loopId: string, context: ProjectGraphContext): Promise<void> {
+    await this.ensure();
+    await atomicWriteJson(join(this.contextDir, `${loopId}.json`), context);
+  }
+
   async readState(): Promise<StateFile | null> {
     return readJson<StateFile>(this.statePath);
   }
@@ -123,6 +131,15 @@ export class LoopGraphFiles {
           runId: metadata.runId,
           loopId: event.loopId,
           iteration: event.iteration
+        });
+      },
+      onLoopContextPrepared: async (event) => {
+        await this.writeLoopContext(event.loopId, event.context);
+        await this.appendEvent("loop.context-prepared", {
+          runId: metadata.runId,
+          loopId: event.loopId,
+          provider: event.context.provider,
+          relevantFileCount: event.context.relevantFiles.length
         });
       },
       onConditionChecked: async (event) => {

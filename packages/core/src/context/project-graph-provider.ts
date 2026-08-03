@@ -1,0 +1,60 @@
+import type { LoopDefinition, LoopGraph, LoopResult } from "../schema/types.js";
+
+export interface ProjectGraphSnapshot {
+  provider: string;
+  graphPath?: string;
+  generatedAt: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ProjectGraphQuery {
+  graph: LoopGraph;
+  loop: LoopDefinition;
+  dependencyResults: LoopResult[];
+}
+
+export interface ProjectGraphRefreshOptions {
+  incremental?: boolean;
+  signal?: AbortSignal;
+}
+
+export interface ProjectGraphContext {
+  provider: string;
+  query: string;
+  generatedAt: string;
+  content: string;
+  communities: string[];
+  entryNodes: string[];
+  relevantFiles: string[];
+  estimatedWriteFiles: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface GraphImpactRequest {
+  loopId: string;
+  changedFiles: string[];
+  baseline?: ProjectGraphSnapshot;
+}
+
+export interface GraphImpactReport {
+  provider: string;
+  generatedAt: string;
+  changedFiles: string[];
+  affectedCommunities: string[];
+  newCycles: string[][];
+  evidence: Record<string, unknown>;
+}
+
+export interface ProjectGraphProvider {
+  readonly name: string;
+
+  initialize(projectRoot: string): Promise<void>;
+
+  ensureCurrent(options?: ProjectGraphRefreshOptions): Promise<ProjectGraphSnapshot>;
+
+  query(request: ProjectGraphQuery, signal?: AbortSignal): Promise<ProjectGraphContext>;
+
+  analyzeImpact?(request: GraphImpactRequest): Promise<GraphImpactReport>;
+
+  shutdown(): Promise<void>;
+}

@@ -50,7 +50,7 @@ Rules:
 7. Use command conditions only for commands that are likely to exist in the project.
 8. Use assertion conditions when deterministic commands are unknown.`;
 }
-function buildClaudeLoopPrompt(request) {
+export function buildClaudeLoopPrompt(request) {
     return `You are executing one LoopGraph workstream.
 
 A loop is a completion-driven workstream, not a single agent task.
@@ -83,8 +83,11 @@ ${JSON.stringify(request.loop.completionConditions, null, 2)}
 Project root:
 ${request.projectRoot}
 
+Project graph scope:
+${formatProjectGraphScope(request)}
+
 Requirements:
-1. Inspect the current repository state before changing files.
+1. When project graph scope is available, begin with those files and nodes before broad repository exploration.
 2. Work only toward this loop's objective.
 3. Use subagents when useful.
 4. Run relevant validation.
@@ -92,6 +95,26 @@ Requirements:
 6. Return structured output matching the required JSON schema.
 7. When incomplete, clearly describe remaining work.
 8. When blocked, clearly describe the blocker.`;
+}
+function formatProjectGraphScope(request) {
+    const context = request.projectGraphContext;
+    if (context === undefined) {
+        return "No project graph provider is configured.";
+    }
+    return JSON.stringify({
+        provider: truncateString(context.provider),
+        relevantFiles: boundedStrings(context.relevantFiles),
+        entryNodes: boundedStrings(context.entryNodes),
+        communities: boundedStrings(context.communities),
+        estimatedWriteFiles: boundedStrings(context.estimatedWriteFiles),
+        rawContextOmitted: true
+    }, null, 2);
+}
+function boundedStrings(values) {
+    return values.slice(0, 50).map(truncateString);
+}
+function truncateString(value) {
+    return value.slice(0, 300);
 }
 async function runClaudeStructured(prompt, schema, options, signal, cwd) {
     return new Promise((resolvePromise, reject) => {
