@@ -3,14 +3,17 @@
 CLI for Graph Engineering Loop.
 
 ```bash
-npx graph-engineering-loop validate examples/fake/loops.json
-npx graph-engineering-loop run examples/fake/loops.json --adapter fake
+npx graph-engineering-loop --help
+npx graph-engineering-loop validate .loopgraph/loops.json
 npx graph-engineering-loop run .loopgraph/loops.json --adapter claude --claude-permission-mode acceptEdits
-npx graph-engineering-loop run .loopgraph/loops.json --adapter interactive
-npx graph-engineering-loop run examples/fake/loops.json --adapter stdio --adapter-command "node examples/stdio-adapter.mjs"
+npx graph-engineering-loop run .loopgraph/loops.json --adapter stdio --adapter-command "node /absolute/path/to/adapter.mjs"
 npx graph-engineering-loop run .loopgraph/loops.json --adapter stdio --adapter-command "node /absolute/path/to/adapter.mjs" --project-graph graphify
 npx graph-engineering-loop cancel
 ```
+
+The graph path is resolved from the current directory. The package does not
+install repository examples into your project, so supply your own graph or run
+the examples from a clone of the repository.
 
 Every real run generates `.loopgraph/status.md` and `.loopgraph/status.json`.
 Open the Markdown file while the process runs to see the live dependency graph,

@@ -120,6 +120,8 @@ GitHub Packages requires scoped npm package names. Before publishing to GitHub P
 
 Current readiness stance:
 
+- The monorepo root is private npm metadata and must never be published; public
+  repository visibility does not make the workspace package publishable.
 - Core, fake, and stdio paths are automated-test covered.
 - Claude adapter has a fresh-temp-project smoke test via `npm run smoke:claude`; require it to pass before release claims.
 - The Claude Code plugin uses the active session through a file-backed interactive bridge; it must not spawn nested `claude -p` workers.

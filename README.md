@@ -31,23 +31,26 @@ Readiness today:
 - Claude adapter is locally smoke-verified with `npm run smoke:claude`.
 - The plugin artifact is tested from an isolated temp copy with `npm run smoke:plugin`; it does not require an npm package or global `loopgraph`.
 - The optional real namespaced-skill check is `npm run smoke:plugin:claude` and requires Claude Code authentication.
-- npm/NPX releases are verified from a clean temporary directory with `npm run smoke:npx`.
+- Packed CLI artifacts are verified from a clean temporary directory with `npm run smoke:pack`.
 
-## Install
+## Run from source
+
+There is currently no supported npm/NPX release. Do not install
+`graph-engineering-loop-workspace`; it is an accidentally published monorepo
+package and contains no executable.
+
+Use the public repository directly:
 
 ```bash
-npm install -g graph-engineering-loop
+git clone https://github.com/AnupDangi/Graph-Engineering-Loop.git
+cd Graph-Engineering-Loop
+npm ci
+npm run build
+npm run loopgraph -- --version
+npm run loopgraph -- run examples/fake/loops.json --adapter fake
 ```
 
-Or run through NPX:
-
-```bash
-npx graph-engineering-loop run examples/fake/loops.json --adapter fake
-```
-
-Do not install `graph-engineering-loop-repo` or the monorepo workspace name. Those are not the CLI.
-
-During local development:
+For development:
 
 ```bash
 npm install
@@ -57,18 +60,6 @@ npm run build
 npm run smoke:fake
 npm run smoke:plugin
 ```
-
-## Publishing
-
-Pushes to `main` run CI only. Publishing happens when you push a version tag:
-
-```bash
-git tag v0.2.2
-git push origin v0.2.2
-```
-
-That publishes `graph-engineering-loop-core` then `graph-engineering-loop` to npmjs, and creates a GitHub Release with Claude plugin install notes.  
-One-time setup: add an `NPM_TOKEN` repo secret. Full checklist: [PUBLISHING.md](./PUBLISHING.md).
 
 To test the real Claude adapter locally:
 
@@ -83,25 +74,25 @@ This creates a fresh temp project, invokes Claude Code headless mode, may use Cl
 Validate a graph:
 
 ```bash
-npx graph-engineering-loop validate examples/fake/loops.json
+npm run loopgraph -- validate examples/fake/loops.json
 ```
 
 Run the fake vertical slice:
 
 ```bash
-npx graph-engineering-loop run examples/fake/loops.json --adapter fake
+npm run loopgraph -- run examples/fake/loops.json --adapter fake
 ```
 
 Run with Claude Code headless:
 
 ```bash
-npx graph-engineering-loop run .loopgraph/loops.json --adapter claude --claude-permission-mode acceptEdits
+npm run loopgraph -- run .loopgraph/loops.json --adapter claude --claude-permission-mode acceptEdits
 ```
 
 Run with a generic external harness command:
 
 ```bash
-npx graph-engineering-loop run examples/fake/loops.json \
+npm run loopgraph -- run examples/fake/loops.json \
   --adapter stdio \
   --adapter-command "node examples/stdio-adapter.mjs"
 ```
@@ -116,7 +107,7 @@ graphify --version
 Run headless Claude with local Graphify context enrichment:
 
 ```bash
-npx graph-engineering-loop run .loopgraph/loops.json \
+npm run loopgraph -- run .loopgraph/loops.json \
   --adapter claude \
   --claude-permission-mode acceptEdits \
   --project-graph graphify
@@ -125,7 +116,7 @@ npx graph-engineering-loop run .loopgraph/loops.json \
 Or pass the full context packet to an explicitly managed stdio adapter:
 
 ```bash
-npx graph-engineering-loop run .loopgraph/loops.json \
+npm run loopgraph -- run .loopgraph/loops.json \
   --adapter stdio \
   --adapter-command "node /absolute/path/to/adapter.mjs" \
   --project-graph graphify
@@ -146,23 +137,24 @@ Review `graphify-out/` before committing it; it is a source-derived project map.
 From the target project's root:
 
 ```bash
-# 1. Install both CLIs.
-npm install -g graph-engineering-loop
+# 1. Build LoopGraph from this repository and install Graphify.
+npm ci
+npm run build
 uv tool install graphifyy
 
 # 2. Confirm the project graph and LoopGraph input are valid.
 graphify --version
-graph-engineering-loop validate .loopgraph/loops.json --project-root "$PWD"
+npm run loopgraph -- validate .loopgraph/loops.json --project-root "$PWD"
 
 # 3. Preview scheduling without executing workers or Graphify.
-graph-engineering-loop run .loopgraph/loops.json \
+npm run loopgraph -- run .loopgraph/loops.json \
   --project-root "$PWD" \
   --adapter claude \
   --project-graph graphify \
   --dry-run
 
 # 4. Run for real. This builds graphify-out/ on the first run and updates it later.
-graph-engineering-loop run .loopgraph/loops.json \
+npm run loopgraph -- run .loopgraph/loops.json \
   --project-root "$PWD" \
   --adapter claude \
   --claude-permission-mode acceptEdits \
@@ -179,12 +171,12 @@ node -e 'const s=require("./.loopgraph/state.json"); console.log(s.status)'
 
 Expected results are a Graphify graph, one context packet per started loop,
 normal loop results under `.loopgraph/results/`, and a terminal state. Use
-`graph-engineering-loop cancel --project-root "$PWD"` to test cancellation.
+`npm run loopgraph -- cancel --project-root "$PWD"` to test cancellation.
 
 Cancel the active project run:
 
 ```bash
-npx graph-engineering-loop cancel
+npm run loopgraph -- cancel
 ```
 
 ## Claude Code Plugin
@@ -352,19 +344,6 @@ Runtime files:
 Commit `.loopgraph/loops.json` when it represents shared project intent. Do not commit mutable runtime files.
 Treat `graphify-out/` as source-derived data and review it before deciding to commit it.
 
-## Package Names
-
-The initial intended npm packages are:
-
-- `graph-engineering-loop`
-- `graph-engineering-loop-core`
-
-The CLI package depends on the core package, so most users install only `graph-engineering-loop`.
-
-Confirm these package names before publishing if you prefer scoped names.
-
-GitHub Packages requires scoped npm package names. See [GITHUB_PACKAGES.md](./GITHUB_PACKAGES.md) before publishing there.
-
 ## Current Limitations
 
 - Resume invalidation is minimal.
@@ -373,7 +352,7 @@ GitHub Packages requires scoped npm package names. See [GITHUB_PACKAGES.md](./GI
 - The stdio adapter runs loops sequentially because arbitrary harness commands may not be repository-concurrency safe.
 - Prompt-to-graph compilation is Claude-backed only when `--adapter claude` is selected; fake/stdio keep a deterministic fallback template.
 - No automatic Git worktree isolation or merge handling yet.
-- Registry install remains unverified until the first `v*` tag Release workflow publishes successfully with `NPM_TOKEN` configured.
+- No supported npm/NPX package is currently available; run the CLI from this repository.
 
 ## References
 

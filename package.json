@@ -1,7 +1,7 @@
 {
   "name": "graph-engineering-loop-workspace",
   "version": "0.2.2",
-  "private": false,
+  "private": true,
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -10,7 +10,9 @@
     "build": "tsc -b packages/core packages/cli",
     "build:plugin": "npm run build && node scripts/build-plugin.mjs",
     "clean": "tsc -b packages/core packages/cli --clean && rm -rf packages/core/dist packages/cli/dist",
+    "loopgraph": "node packages/cli/dist/cli.js",
     "pack:dry": "npm run clean && npm run build && npm --cache .npm-cache pack --workspace ./packages/core --dry-run && npm --cache .npm-cache pack --workspace ./packages/cli --dry-run",
+    "prepublishOnly": "node scripts/reject-root-publish.mjs",
     "verify:release": "node scripts/verify-release-version.mjs",
     "smoke:claude": "node scripts/smoke-claude.mjs",
     "smoke:plugin": "npm run build:plugin && node scripts/smoke-plugin.mjs",
