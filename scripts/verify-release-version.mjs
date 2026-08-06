@@ -53,14 +53,20 @@ if (rootPkg.private !== true) {
   throw new Error("Root package.json must be private:true so the monorepo is never published.");
 }
 
+if (rootPkg.name === "graph-engineering-loop-workspace") {
+  throw new Error(
+    "Root must not reuse the publishable CLI name graph-engineering-loop-workspace. Use gel-monorepo."
+  );
+}
+
 if (rootPkg.name === cli.name || rootPkg.name === core.name) {
   throw new Error(
     `Root package name '${rootPkg.name}' collides with a publishable package. Keep the monorepo private and named differently.`
   );
 }
 
-if (cli.name !== "graph-engineering-loop") {
-  throw new Error(`CLI package must be named graph-engineering-loop, got ${cli.name}`);
+if (cli.name !== "graph-engineering-loop-workspace") {
+  throw new Error(`CLI package must be named graph-engineering-loop-workspace, got ${cli.name}`);
 }
 
 const coreDep = cli.dependencies?.["graph-engineering-loop-core"];
@@ -68,8 +74,11 @@ if (coreDep !== expected) {
   throw new Error(`CLI depends on graph-engineering-loop-core@${coreDep}, expected ${expected}`);
 }
 
-if (cli.bin?.["graph-engineering-loop"] !== "./dist/cli.js" || cli.bin?.loopgraph !== "./dist/cli.js") {
-  throw new Error("CLI package must expose graph-engineering-loop and loopgraph from ./dist/cli.js");
+const requiredBins = ["graph-engineering-loop-workspace", "graph-engineering-loop", "loopgraph"];
+for (const binName of requiredBins) {
+  if (cli.bin?.[binName] !== "./dist/cli.js") {
+    throw new Error(`CLI package must expose ${binName} from ./dist/cli.js`);
+  }
 }
 
 for (const [label, pkg] of [["CLI", cli], ["core", core]]) {
@@ -85,4 +94,4 @@ for (const [label, pkg] of [["CLI", cli], ["core", core]]) {
 }
 
 console.log(`Release version ${expected} matches package and plugin manifests.`);
-console.log(`Install target: npm i -g graph-engineering-loop`);
+console.log(`Install target: npm i -g graph-engineering-loop-workspace`);

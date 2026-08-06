@@ -9,7 +9,7 @@ The core format and runtime are harness-neutral. The first real harness target i
 
 ## Status
 
-This is an early `0.2.2` implementation. It includes:
+This is an early `0.2.3` implementation. It includes:
 
 - Version 1 graph validation.
 - Deterministic dependency scheduling.
@@ -27,8 +27,6 @@ This is an early `0.2.2` implementation. It includes:
 
 ## Run from source
 
-The CLI is currently installed from the public repository:
-
 ```bash
 git clone https://github.com/AnupDangi/Graph-Engineering-Loop.git
 cd Graph-Engineering-Loop
@@ -36,6 +34,20 @@ npm ci
 npm run build
 npm run loopgraph -- --version
 npm run loopgraph -- run examples/fake/loops.json --adapter fake
+```
+
+## Install from npm
+
+```bash
+npm install -g graph-engineering-loop-workspace
+graph-engineering-loop-workspace --version
+loopgraph run examples/fake/loops.json --adapter fake
+```
+
+Or:
+
+```bash
+npx graph-engineering-loop-workspace --version
 ```
 
 ## Quick Start

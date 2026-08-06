@@ -13,17 +13,18 @@ test("the monorepo root cannot be published as an npm package", async () => {
   const rootPackage = await readPackage("package.json");
   const scripts = rootPackage.scripts as Record<string, string>;
 
-  assert.equal(rootPackage.name, "graph-engineering-loop-workspace");
+  assert.equal(rootPackage.name, "gel-monorepo");
   assert.equal(rootPackage.private, true);
   assert.equal(rootPackage.bin, undefined);
   assert.equal(scripts.prepublishOnly, "node scripts/reject-root-publish.mjs");
 });
 
-test("only the CLI workspace exposes the supported executables", async () => {
+test("the existing npm package name is the real CLI workspace", async () => {
   const cliPackage = await readPackage("packages/cli/package.json");
   const bin = cliPackage.bin as Record<string, string>;
 
-  assert.equal(cliPackage.name, "graph-engineering-loop");
+  assert.equal(cliPackage.name, "graph-engineering-loop-workspace");
+  assert.equal(bin["graph-engineering-loop-workspace"], "./dist/cli.js");
   assert.equal(bin["graph-engineering-loop"], "./dist/cli.js");
   assert.equal(bin.loopgraph, "./dist/cli.js");
 });

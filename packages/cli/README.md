@@ -1,14 +1,26 @@
-# graph-engineering-loop
+# graph-engineering-loop-workspace
 
-CLI for Graph Engineering Loop.
+CLI for Graph Engineering Loop. Install the package that already exists on npm:
 
 ```bash
-npx graph-engineering-loop --help
-npx graph-engineering-loop validate .loopgraph/loops.json
-npx graph-engineering-loop run .loopgraph/loops.json --adapter claude --claude-permission-mode acceptEdits
-npx graph-engineering-loop run .loopgraph/loops.json --adapter stdio --adapter-command "node /absolute/path/to/adapter.mjs"
-npx graph-engineering-loop run .loopgraph/loops.json --adapter stdio --adapter-command "node /absolute/path/to/adapter.mjs" --project-graph graphify
-npx graph-engineering-loop cancel
+npm install -g graph-engineering-loop-workspace
+```
+
+Commands after install:
+
+```bash
+graph-engineering-loop-workspace --help
+graph-engineering-loop --help
+loopgraph --help
+```
+
+```bash
+npx graph-engineering-loop-workspace --help
+npx graph-engineering-loop-workspace validate .loopgraph/loops.json
+npx graph-engineering-loop-workspace run .loopgraph/loops.json --adapter claude --claude-permission-mode acceptEdits
+npx graph-engineering-loop-workspace run .loopgraph/loops.json --adapter stdio --adapter-command "node /absolute/path/to/adapter.mjs"
+npx graph-engineering-loop-workspace run .loopgraph/loops.json --adapter stdio --adapter-command "node /absolute/path/to/adapter.mjs" --project-graph graphify
+npx graph-engineering-loop-workspace cancel
 ```
 
 The graph path is resolved from the current directory. The package does not
@@ -26,7 +38,7 @@ Install the optional Graphify CLI, then select it explicitly:
 
 ```bash
 uv tool install graphifyy
-npx graph-engineering-loop run .loopgraph/loops.json \
+npx graph-engineering-loop-workspace run .loopgraph/loops.json \
   --adapter claude \
   --claude-permission-mode acceptEdits \
   --project-graph graphify \

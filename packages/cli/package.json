@@ -1,6 +1,6 @@
 {
-  "name": "graph-engineering-loop",
-  "version": "0.2.2",
+  "name": "graph-engineering-loop-workspace",
+  "version": "0.2.3",
   "description": "CLI for dependency-aware completion-driven engineering loop graphs.",
   "type": "module",
   "license": "MIT",
@@ -25,11 +25,12 @@
     "LICENSE"
   ],
   "bin": {
+    "graph-engineering-loop-workspace": "./dist/cli.js",
     "graph-engineering-loop": "./dist/cli.js",
     "loopgraph": "./dist/cli.js"
   },
   "dependencies": {
-    "graph-engineering-loop-core": "0.2.2"
+    "graph-engineering-loop-core": "0.2.3"
   },
   "scripts": {
     "build": "tsc -b",

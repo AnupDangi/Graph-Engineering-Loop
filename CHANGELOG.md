@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3
+
+- Made the existing npm package `graph-engineering-loop-workspace` the real CLI (with `bin` entry points).
+- Renamed the private monorepo root to `gel-monorepo` so it never collides with the published CLI name.
+- Kept companion commands `graph-engineering-loop` and `loopgraph` on the same package.
+- Publish order remains `graph-engineering-loop-core` then `graph-engineering-loop-workspace`.
+
 ## 0.2.2
 
 - Added an opt-in, harness-neutral project graph provider boundary.

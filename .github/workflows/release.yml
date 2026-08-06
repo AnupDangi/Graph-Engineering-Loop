@@ -63,8 +63,8 @@ jobs:
       - name: Publish CLI to npmjs
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if npm view "graph-engineering-loop@${VERSION}" version >/dev/null 2>&1; then
-            echo "graph-engineering-loop@${VERSION} already exists; skipping."
+          if npm view "graph-engineering-loop-workspace@${VERSION}" version >/dev/null 2>&1; then
+            echo "graph-engineering-loop-workspace@${VERSION} already exists; skipping."
           else
             npm publish --workspace ./packages/cli --access public --provenance
           fi
@@ -85,8 +85,9 @@ jobs:
           ### npm
 
           \`\`\`bash
-          npm install -g graph-engineering-loop
-          npx graph-engineering-loop --version
+          npm install -g graph-engineering-loop-workspace
+          npx graph-engineering-loop-workspace --version
+          loopgraph --version
           \`\`\`
 
           ### Claude Code plugin (from this repo)
@@ -106,7 +107,7 @@ jobs:
           Packages published:
 
           - graph-engineering-loop-core@${VERSION}
-          - graph-engineering-loop@${VERSION}
+          - graph-engineering-loop-workspace@${VERSION}
           EOF
           # Strip the common leading indent from the heredoc body.
           sed -i 's/^          //' /tmp/release-notes.md

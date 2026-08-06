@@ -3,110 +3,80 @@
 ## Install target
 
 ```bash
-npm install -g graph-engineering-loop
+npm install -g graph-engineering-loop-workspace
 ```
 
-Only `graph-engineering-loop` and `graph-engineering-loop-core` are published.  
-The repo root (`graph-engineering-loop-workspace`) is `private: true` and is never published.  
-`graph-engineering-loop@0.2.0` accidentally published the monorepo root without a
-binary. It is deprecated. The failed `v0.2.1` release tag points to an older
-commit and must not be reused; `0.2.2` is the next publishable release.
-As of the `0.2.2` preparation, `graph-engineering-loop-core` is not yet present
-on npm and must publish successfully before the CLI package.
+After install you get these commands:
+
+```bash
+graph-engineering-loop-workspace --version
+graph-engineering-loop --version
+loopgraph --version
+```
+
+Published packages:
+
+- `graph-engineering-loop-workspace` — the real CLI (this is the package already on npm; we keep and fix it)
+- `graph-engineering-loop-core` — runtime dependency
+
+The monorepo root is `gel-monorepo` with `private: true` and is **never** published.  
+Do not run bare `npm publish` at the repo root.
 
 ## Tag publish
 
-This repo publishes on **version tag push**:
-
 ```text
-git push origin v0.2.2
+git tag v0.2.3
+git push origin v0.2.3
 ```
 
 That triggers `.github/workflows/release.yml`, which:
 
 1. Verifies the tag matches package + plugin versions
-2. Builds, tests, and runs `smoke:plugin`
-3. Publishes `graph-engineering-loop-core` then `graph-engineering-loop` to **npmjs**
-4. Installs the exact published CLI with NPX in a clean temporary directory
-5. Creates a **GitHub Release** with npm + Claude plugin install notes
+2. Builds, tests, and runs `smoke:plugin` + `smoke:pack`
+3. Publishes `graph-engineering-loop-core` then `graph-engineering-loop-workspace`
+4. Installs the published CLI with NPX in a clean temp directory
+5. Creates a GitHub Release
 
-CI on every `main` push/PR is `.github/workflows/ci.yml` (no publish).
+## Local publish (if you prefer not to wait on Actions)
 
-## One-time: npm token secret
+```bash
+npm run build
+npm test
+npm run smoke:pack
+npm publish --workspace ./packages/core --access public
+npm publish --workspace ./packages/cli --access public
+npx --yes graph-engineering-loop-workspace@0.2.3 --version
+```
 
-1. Create a granular npm token at https://www.npmjs.com/settings/~/tokens with:
-   - Packages and scopes: **Read and write**, **All packages**
-   - **Bypass two-factor authentication** enabled for CI publishing
-   - A short expiration appropriate for the release process
-2. Add it to the GitHub repo:
+## One-time: npm auth
+
+For GitHub Actions, set `NPM_TOKEN` (granular token with **Bypass 2FA** / Automation token):
 
 ```bash
 gh secret set NPM_TOKEN -R AnupDangi/Graph-Engineering-Loop
 ```
 
-Paste the token when prompted. Do not commit the token.
+For local publish:
 
-Without a valid write token, the release workflow's npm authentication preflight
-will fail before publishing. Never paste or commit the token in repository files.
+```bash
+npm login
+npm whoami
+```
 
-## Release checklist
+## Version checklist
 
-1. Bump versions together in:
-   - `package.json`
-   - `packages/core/package.json`
-   - `packages/cli/package.json` (including `dependencies.graph-engineering-loop-core`)
-   - `claude-plugin/.claude-plugin/plugin.json`
-   - `.claude-plugin/marketplace.json` (marketplace + plugin entry)
-   - `CHANGELOG.md`
-2. Rebuild the plugin vendor artifact:
+Bump together to the same version:
+
+- `package.json` (gel-monorepo, private)
+- `packages/core/package.json`
+- `packages/cli/package.json` (including `dependencies.graph-engineering-loop-core`)
+- `claude-plugin/.claude-plugin/plugin.json`
+- `.claude-plugin/marketplace.json`
+- `CHANGELOG.md`
+
+Then:
 
 ```bash
 npm run build:plugin
+npm run verify:release -- v0.2.3
 ```
-
-3. Commit and push to `main`.
-4. Tag and push the tag (this is the publish trigger):
-
-```bash
-git tag v0.2.2
-git push origin v0.2.2
-```
-
-5. Confirm:
-   - Actions → Release workflow is green
-   - `npm view graph-engineering-loop version`
-   - `npm run smoke:npx`
-   - GitHub Releases shows the new tag
-   - Claude marketplace install from the release notes works
-
-## Local dry run
-
-```bash
-npm run pack:dry
-npm run smoke:pack
-node scripts/verify-release-version.mjs v0.2.2
-npm audit
-npm view graph-engineering-loop version
-npm view graph-engineering-loop-core version || true
-```
-
-Before committing the release, also confirm `git status` contains no `.env`,
-credential, npm debug log, `.loopgraph/context/`, or unintended `graphify-out/`
-artifacts.
-
-## Claude plugin “push”
-
-The plugin lives in this GitHub repo (`claude-plugin/` + marketplace manifest).  
-Tagging a release is what makes a versioned plugin install point for:
-
-```text
-/plugin marketplace add AnupDangi/Graph-Engineering-Loop
-/plugin install graph-engineering-loop@graph-engineering-loop-marketplace
-```
-
-There is no separate Claude registry publish step. Keep `claude-plugin/vendor/` in git so marketplace consumers get a self-contained plugin.
-
-## GitHub Packages (optional, later)
-
-GitHub Packages requires scoped names (`@anupdangi/...`).  
-Current publish path is **npmjs unscoped only**. See [GITHUB_PACKAGES.md](./GITHUB_PACKAGES.md) if you want a scoped dual-registry setup next.
