@@ -54,7 +54,8 @@ async function pack(workspace) {
     repoRoot
   );
   const details = JSON.parse(output);
-  const filename = details?.[0]?.filename;
+  const results = Array.isArray(details) ? details : Object.values(details);
+  const filename = results?.[0]?.filename;
   if (typeof filename !== "string") {
     throw new Error(`npm pack did not return a filename for ${workspace}: ${output}`);
   }
