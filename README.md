@@ -9,7 +9,7 @@ The core format and runtime are harness-neutral. The first real harness target i
 
 ## Status
 
-This is an early `0.2.3` implementation. It includes:
+This is an early `0.2.4` implementation. It includes:
 
 - Version 1 graph validation.
 - Deterministic dependency scheduling.
@@ -40,14 +40,40 @@ npm run loopgraph -- run examples/fake/loops.json --adapter fake
 
 ```bash
 npm install -g graph-engineering-loop-workspace
-graph-engineering-loop-workspace --version
-loopgraph run examples/fake/loops.json --adapter fake
 ```
 
-Or:
+### First time in any project (no loops.json yet)
 
 ```bash
-npx graph-engineering-loop-workspace --version
+# From the project you want to work on:
+npx graph-engineering-loop-workspace run "your goal here" --adapter fake
+npx graph-engineering-loop-workspace validate .loopgraph/loops.json
+```
+
+That creates `.loopgraph/loops.json` and runs a fake adapter smoke.  
+Wrong: `validate.loopgraph/loops.json` (missing space).  
+Right: `validate .loopgraph/loops.json`.
+
+### With Claude Code
+
+```bash
+# headless (CI / terminal):
+npx graph-engineering-loop-workspace run .loopgraph/loops.json \
+  --adapter claude \
+  --claude-permission-mode acceptEdits
+
+# interactive plugin (inside Claude Code):
+npm run build:plugin   # only needed in this source repo
+claude --plugin-dir ./claude-plugin
+# then: /graph-engineering-loop:loop-graph <prompt-or-path>
+```
+
+### With Cursor
+
+Use the project command `/loop-graph` (see `.cursor/commands/loop-graph.md`) or:
+
+```bash
+npx graph-engineering-loop-workspace run "your goal" --adapter fake
 ```
 
 ## Quick Start

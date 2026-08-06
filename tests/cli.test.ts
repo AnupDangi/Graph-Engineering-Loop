@@ -18,7 +18,7 @@ test("CLI exposes production help and version entry points", async () => {
 
   const version = await runCli(["--version"]);
   assert.equal(version.code, 0, version.stderr);
-  assert.match(version.stdout, /graph-engineering-loop 0\.2\.3/);
+  assert.match(version.stdout, /graph-engineering-loop 0\.2\.4/);
 });
 
 test("CLI validates and runs the fake example with durable results", async () => {
@@ -85,6 +85,46 @@ test("CLI rejects missing path-like inputs instead of compiling them as prompts"
   ]);
   assert.equal(run.code, 1);
   assert.match(run.stderr, /Input path does not exist/);
+});
+
+test("CLI compiles sentence prompts that mention file extensions", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-prompt-txt-"));
+
+  const run = await runCli([
+    "run",
+    "Prove agent usability with a tiny hello.txt",
+    "--adapter",
+    "fake",
+    "--project-root",
+    projectRoot
+  ]);
+  assert.equal(run.code, 0, run.stderr);
+  assert.match(run.stdout, /LoopGraph completed/);
+
+  const graph = JSON.parse(await readFile(join(projectRoot, ".loopgraph/loops.json"), "utf8")) as {
+    name: string;
+  };
+  assert.equal(graph.name, "generated-loopgraph");
+});
+
+test("CLI explains glued validate.loopgraph typos", async () => {
+  const result = await runCli(["validate.loopgraph/loops.json"]);
+  assert.equal(result.code, 4);
+  assert.match(result.stderr, /Missing space after 'validate'/);
+  assert.match(result.stderr, /validate \.loopgraph\/loops\.json/);
+});
+
+test("CLI does not validate another cwd loops.json when project-root is empty", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-empty-root-"));
+  const result = await runCli([
+    "validate",
+    ".loopgraph/loops.json",
+    "--project-root",
+    projectRoot
+  ]);
+  assert.equal(result.code, 4);
+  assert.match(result.stderr, /Input path does not exist/);
+  assert.match(result.stderr, /no loops\.json yet/i);
 });
 
 test("CLI runs the fake example through the generic stdio adapter", async () => {

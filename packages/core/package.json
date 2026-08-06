@@ -1,6 +1,6 @@
 {
   "name": "graph-engineering-loop-core",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Harness-neutral core runtime for dependency-aware completion-driven engineering loop graphs.",
   "type": "module",
   "license": "MIT",

@@ -58,19 +58,42 @@ async function main(args: string[]): Promise<number> {
     return EXIT_SUCCESS;
   }
 
+  const glued = detectGluedCommand(args[0]);
+  if (glued !== null) {
+    console.error(glued);
+    return EXIT_INVALID_ARGUMENTS;
+  }
+
   const options = parseArgs(args);
 
   if (options.command === "validate") {
     const inputPath = options.file ?? options.input;
     if (inputPath === undefined) {
       console.error("Usage: loopgraph validate <loops.json>");
+      console.error("Example: npx graph-engineering-loop-workspace validate .loopgraph/loops.json");
       return EXIT_INVALID_ARGUMENTS;
     }
 
-    const path = await resolveExistingInputPath(options, inputPath);
-    const graph = parseLoopGraphJson(await readFile(path, "utf8"));
-    console.log(`LoopGraph '${graph.name}' is valid (${graph.loops.length} loops).`);
-    return EXIT_SUCCESS;
+    try {
+      const path = await resolveExistingInputPath(options, inputPath);
+      const graph = parseLoopGraphJson(await readFile(path, "utf8"));
+      console.log(`LoopGraph '${graph.name}' is valid (${graph.loops.length} loops).`);
+      return EXIT_SUCCESS;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.startsWith("Input path does not exist:")) {
+        console.error(message);
+        console.error("");
+        console.error("This project has no loops.json yet. Create one first:");
+        console.error(`  npx graph-engineering-loop-workspace run "your goal here" --adapter fake`);
+        console.error("Then validate:");
+        console.error("  npx graph-engineering-loop-workspace validate .loopgraph/loops.json");
+        console.error("");
+        console.error("Note the space after validate. Do not write: validate.loopgraph/...");
+        return EXIT_INVALID_ARGUMENTS;
+      }
+      throw error;
+    }
   }
 
   if (options.command === "run") {
@@ -216,14 +239,36 @@ async function resolveExistingInputPath(options: CliOptions, input: string): Pro
 
 async function resolveOptionalInputPath(options: CliOptions, input: string): Promise<string | null> {
   const stripped = stripAtPrefix(input);
-  const candidates = isAbsolute(stripped)
-    ? [stripped]
-    : [resolve(process.cwd(), stripped), resolve(options.projectRoot, stripped)];
+  if (isAbsolute(stripped)) {
+    return (await fileExists(stripped)) ? stripped : null;
+  }
 
-  for (const candidate of candidates) {
-    if (await fileExists(candidate)) {
-      return candidate;
+  const projectCandidate = resolve(options.projectRoot, stripped);
+  const cwdCandidate = resolve(process.cwd(), stripped);
+  const projectExists = await fileExists(projectCandidate);
+  const cwdExists = await fileExists(cwdCandidate);
+  const projectRoot = resolve(options.projectRoot);
+  const cwd = resolve(process.cwd());
+
+  // Durable runtime files are project-scoped. Never resolve another cwd's
+  // .loopgraph/ artifact when --project-root points elsewhere.
+  if (stripped === ".loopgraph/loops.json" || stripped.startsWith(`.loopgraph${sep}`) || stripped.startsWith(".loopgraph/")) {
+    if (projectExists) {
+      return projectCandidate;
     }
+    if (cwdExists && projectRoot === cwd) {
+      return cwdCandidate;
+    }
+    return null;
+  }
+
+  // Ordinary relative paths keep cwd-first resolution so callers can pass
+  // repo-relative graphs while targeting another --project-root.
+  if (cwdExists) {
+    return cwdCandidate;
+  }
+  if (projectExists) {
+    return projectCandidate;
   }
 
   return null;
@@ -436,6 +481,32 @@ function parseArgs(args: string[]): CliOptions {
   return options;
 }
 
+function detectGluedCommand(arg: string | undefined): string | null {
+  if (arg === undefined) {
+    return null;
+  }
+
+  for (const command of ["validate", "run", "cancel"] as const) {
+    if (arg === command) {
+      return null;
+    }
+    if (arg.startsWith(`${command}.`) || arg.startsWith(`${command}/`)) {
+      const rest = arg.slice(command.length);
+      return [
+        `Missing space after '${command}'.`,
+        `You wrote: ${arg}`,
+        `Use:      ${command} ${rest}`,
+        "",
+        "Examples:",
+        "  npx graph-engineering-loop-workspace validate .loopgraph/loops.json",
+        "  npx graph-engineering-loop-workspace run \"Build auth and a dashboard\" --adapter fake"
+      ].join("\n");
+    }
+  }
+
+  return null;
+}
+
 function requireValue(args: string[], index: number, flag: string): string {
   const value = args[index];
   if (value === undefined) {
@@ -476,9 +547,20 @@ function stripAtPrefix(input: string): string {
 }
 
 function looksLikePath(input: string): boolean {
-  const stripped = stripAtPrefix(input);
+  const stripped = stripAtPrefix(input).trim();
+  if (stripped.length === 0) {
+    return false;
+  }
+
+  // Sentence-like prompts that merely mention a file extension are not paths.
+  if (/\s/.test(stripped) && !stripped.startsWith(".") && !stripped.startsWith("/") && !stripped.includes("/") && !stripped.includes(sep)) {
+    return false;
+  }
+
   return (
     input.startsWith("@") ||
+    stripped.startsWith(".") ||
+    stripped.startsWith("/") ||
     stripped.includes("/") ||
     stripped.includes(sep) ||
     /\.(json|md|markdown|txt|yaml|yml)$/i.test(stripped)

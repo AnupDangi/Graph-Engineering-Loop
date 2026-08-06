@@ -4,13 +4,13 @@
     "name": "Anup Dangi"
   },
   "description": "Claude Code marketplace for Graph Engineering Loop.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "plugins": [
     {
       "name": "graph-engineering-loop",
       "source": "./claude-plugin",
       "description": "Run dependency-aware completion-driven engineering loop graphs.",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "author": {
         "name": "Anup Dangi"
       },

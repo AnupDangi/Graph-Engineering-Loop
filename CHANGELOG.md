@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4
+
+- Clearer CLI errors for missing spaces (`validate.loopgraph/...`) and missing `.loopgraph/loops.json`.
+- Treat sentence prompts that mention `.txt`/`.md` as prompts, not missing paths.
+- Keep `.loopgraph/` path resolution scoped to `--project-root`.
+- Added Cursor `/loop-graph` command docs.
+
+
 ## 0.2.3
 
 - Made the existing npm package `graph-engineering-loop-workspace` the real CLI (with `bin` entry points).
