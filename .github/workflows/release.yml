@@ -23,6 +23,9 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      - name: Use current npm CLI
+        run: npm install -g npm@latest
+
       - name: Install
         run: npm ci
 
@@ -44,32 +47,45 @@ jobs:
       - name: Verify packed install
         run: npm run smoke:pack
 
-      - name: Verify npm publisher authentication
-        run: npm whoami --registry https://registry.npmjs.org
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Prepare OIDC npm publish auth
+        run: |
+          # actions/setup-node writes an empty _authToken placeholder when
+          # NODE_AUTH_TOKEN is unset. That blocks npm Trusted Publishing OIDC.
+          if [[ -n "${NPM_CONFIG_USERCONFIG:-}" && -f "${NPM_CONFIG_USERCONFIG}" ]]; then
+            sed -i '/:_authToken=/d' "${NPM_CONFIG_USERCONFIG}"
+            echo "Cleaned ${NPM_CONFIG_USERCONFIG} for OIDC publish:"
+            cat "${NPM_CONFIG_USERCONFIG}"
+          fi
 
       - name: Publish core to npmjs
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           if npm view "graph-engineering-loop-core@${VERSION}" version >/dev/null 2>&1; then
             echo "graph-engineering-loop-core@${VERSION} already exists; skipping."
-          else
-            npm publish --workspace ./packages/core --access public --provenance
+            exit 0
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          if ! npm publish --workspace ./packages/core --access public --provenance; then
+            echo "::error::Failed to publish graph-engineering-loop-core@${VERSION}."
+            echo "Configure npm Trusted Publishing for this package:"
+            echo "  Repository: AnupDangi/Graph-Engineering-Loop"
+            echo "  Workflow: release.yml"
+            echo "  Allowed action: npm publish"
+            echo "Or set NPM_TOKEN with Read/Write on BOTH packages + Bypass 2FA, then restore token publish."
+            exit 1
+          fi
 
       - name: Publish CLI to npmjs
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           if npm view "graph-engineering-loop-workspace@${VERSION}" version >/dev/null 2>&1; then
             echo "graph-engineering-loop-workspace@${VERSION} already exists; skipping."
-          else
-            npm publish --workspace ./packages/cli --access public --provenance
+            exit 0
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          if ! npm publish --workspace ./packages/cli --access public --provenance; then
+            echo "::error::Failed to publish graph-engineering-loop-workspace@${VERSION}."
+            echo "Configure npm Trusted Publishing for this package too (same repo/workflow)."
+            exit 1
+          fi
 
       - name: Verify published CLI from a clean directory
         run: npm run smoke:npx
@@ -109,7 +125,6 @@ jobs:
           - graph-engineering-loop-core@${VERSION}
           - graph-engineering-loop-workspace@${VERSION}
           EOF
-          # Strip the common leading indent from the heredoc body.
           sed -i 's/^          //' /tmp/release-notes.md
           gh release create "$GITHUB_REF_NAME" \
             --title "Graph Engineering Loop ${GITHUB_REF_NAME}" \
