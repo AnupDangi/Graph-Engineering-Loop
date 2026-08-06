@@ -8,7 +8,7 @@ export class ClaudeHeadlessAdapter {
         supportsSubagents: true,
         supportsResume: true,
         supportsStructuredOutput: true,
-        supportsIsolatedWorktrees: false
+        supportsIsolatedWorktrees: true
     };
     constructor(options = {}) {
         this.options = options;
@@ -341,10 +341,7 @@ const loopExecutionResultSchema = {
             }
         },
         handoff: {
-            anyOf: [
-                { type: "string" },
-                { type: "array", items: { type: "string" } }
-            ]
+            anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
         },
         blockedReason: {
             anyOf: [{ type: "string" }, { type: "null" }]

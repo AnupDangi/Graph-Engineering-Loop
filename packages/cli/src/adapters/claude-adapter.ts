@@ -28,7 +28,7 @@ export class ClaudeHeadlessAdapter implements HarnessAdapter {
     supportsSubagents: true,
     supportsResume: true,
     supportsStructuredOutput: true,
-    supportsIsolatedWorktrees: false
+    supportsIsolatedWorktrees: true
   };
 
   constructor(private readonly options: ClaudeHeadlessAdapterOptions = {}) {}
@@ -141,14 +141,18 @@ function formatProjectGraphScope(request: LoopExecutionRequest): string {
     return "No project graph provider is configured.";
   }
 
-  return JSON.stringify({
-    provider: truncateString(context.provider),
-    relevantFiles: boundedStrings(context.relevantFiles),
-    entryNodes: boundedStrings(context.entryNodes),
-    communities: boundedStrings(context.communities),
-    estimatedWriteFiles: boundedStrings(context.estimatedWriteFiles),
-    rawContextOmitted: true
-  }, null, 2);
+  return JSON.stringify(
+    {
+      provider: truncateString(context.provider),
+      relevantFiles: boundedStrings(context.relevantFiles),
+      entryNodes: boundedStrings(context.entryNodes),
+      communities: boundedStrings(context.communities),
+      estimatedWriteFiles: boundedStrings(context.estimatedWriteFiles),
+      rawContextOmitted: true
+    },
+    null,
+    2
+  );
 }
 
 function boundedStrings(values: string[]): string[] {
@@ -238,7 +242,12 @@ function formatClaudeFailure(code: number | null, stdout: string, stderr: string
 
 function summarizeClaudeStdout(stdout: string): string {
   try {
-    const parsed = JSON.parse(stdout) as { subtype?: string; terminal_reason?: string; errors?: string[]; total_cost_usd?: number };
+    const parsed = JSON.parse(stdout) as {
+      subtype?: string;
+      terminal_reason?: string;
+      errors?: string[];
+      total_cost_usd?: number;
+    };
     return JSON.stringify({
       subtype: parsed.subtype,
       terminal_reason: parsed.terminal_reason,
@@ -403,10 +412,7 @@ const loopExecutionResultSchema = {
       }
     },
     handoff: {
-      anyOf: [
-        { type: "string" },
-        { type: "array", items: { type: "string" } }
-      ]
+      anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }]
     },
     blockedReason: {
       anyOf: [{ type: "string" }, { type: "null" }]

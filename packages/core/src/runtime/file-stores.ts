@@ -2,7 +2,12 @@ import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
-import type { GraphRunResult, GraphRunSnapshot, GraphRuntimeHooks, LoopCompletedEvent } from "./graph-runtime.js";
+import type {
+  GraphRunResult,
+  GraphRunSnapshot,
+  GraphRuntimeHooks,
+  LoopCompletedEvent
+} from "./graph-runtime.js";
 import type { CompletionCondition, GraphStatus, LoopGraph, LoopResult, LoopStatus } from "../schema/types.js";
 import type { ProjectGraphContext } from "../context/project-graph-provider.js";
 
@@ -179,7 +184,12 @@ export class LoopGraphFiles {
     return {
       onGraphStarted: async (snapshot) => {
         await this.appendEvent("graph.started", { runId: metadata.runId });
-        await this.persistSnapshot(metadata, graph, snapshot, "Graph started; scheduler is selecting ready loops.");
+        await this.persistSnapshot(
+          metadata,
+          graph,
+          snapshot,
+          "Graph started; scheduler is selecting ready loops."
+        );
       },
       onLoopStarted: async (event) => {
         await this.appendEvent("loop.started", {
@@ -222,12 +232,7 @@ export class LoopGraphFiles {
           runId: metadata.runId,
           status: result.status
         });
-        await this.persistSnapshot(
-          metadata,
-          graph,
-          result,
-          `Graph finished with status ${result.status}.`
-        );
+        await this.persistSnapshot(metadata, graph, result, `Graph finished with status ${result.status}.`);
       }
     };
   }
@@ -326,7 +331,12 @@ export function hashGraph(graph: LoopGraph): string {
 }
 
 export function isTerminalGraphStatus(status: GraphStatus): boolean {
-  return status === "completed" || status === "completed_with_blocks" || status === "failed" || status === "cancelled";
+  return (
+    status === "completed" ||
+    status === "completed_with_blocks" ||
+    status === "failed" ||
+    status === "cancelled"
+  );
 }
 
 async function readJson<T>(path: string): Promise<T | null> {
@@ -359,36 +369,52 @@ async function atomicWriteText(path: string, value: string): Promise<void> {
 function formatStatusMarkdown(status: StatusFile): string {
   const progress = formatProgress(status.completedLoops, status.totalLoops);
   const activeLoops = status.loops.filter((loop) => loop.status === "running");
-  const activeSection = activeLoops.length === 0
-    ? "No loop is currently running. The scheduler may be preparing work or the graph is terminal."
-    : activeLoops.map((loop) => {
-        const tasks = loop.tasks.length === 0
-          ? "- No advisory tasks. Follow the objective and completion conditions."
-          : loop.tasks.map((task) => `- ${escapeMarkdown(task)}`).join("\n");
-        return `### ${escapeMarkdown(loop.title)}\n\n` +
-          `- Loop: \`${loop.id}\`\n` +
-          `- Iteration: ${loop.currentIteration} / ${loop.maxIterations}\n` +
-          `- Objective: ${escapeMarkdown(loop.objective)}\n\n` +
-          `Tasks:\n\n${tasks}`;
-      }).join("\n\n");
-  const rows = status.loops.map((loop) =>
-    `| \`${loop.id}\` | ${statusIcon(loop.status)} ${loop.status} | ` +
-    `${loop.currentIteration}/${loop.maxIterations} | ${escapeMarkdown(loop.waitingFor.join(", ") || "—")} | ` +
-    `${escapeMarkdown(loop.objective)} |`
-  ).join("\n");
-  const nodes = status.loops.map((loop, index) =>
-    `  n${index}["${escapeMermaid(loop.title)}<br/>${statusIcon(loop.status)} ${loop.status} · ` +
-    `${loop.currentIteration}/${loop.maxIterations}"]\n  class n${index} ${loop.status};`
-  ).join("\n");
+  const activeSection =
+    activeLoops.length === 0
+      ? "No loop is currently running. The scheduler may be preparing work or the graph is terminal."
+      : activeLoops
+          .map((loop) => {
+            const tasks =
+              loop.tasks.length === 0
+                ? "- No advisory tasks. Follow the objective and completion conditions."
+                : loop.tasks.map((task) => `- ${escapeMarkdown(task)}`).join("\n");
+            return (
+              `### ${escapeMarkdown(loop.title)}\n\n` +
+              `- Loop: \`${loop.id}\`\n` +
+              `- Iteration: ${loop.currentIteration} / ${loop.maxIterations}\n` +
+              `- Objective: ${escapeMarkdown(loop.objective)}\n\n` +
+              `Tasks:\n\n${tasks}`
+            );
+          })
+          .join("\n\n");
+  const rows = status.loops
+    .map(
+      (loop) =>
+        `| \`${loop.id}\` | ${statusIcon(loop.status)} ${loop.status} | ` +
+        `${loop.currentIteration}/${loop.maxIterations} | ${escapeMarkdown(loop.waitingFor.join(", ") || "—")} | ` +
+        `${escapeMarkdown(loop.objective)} |`
+    )
+    .join("\n");
+  const nodes = status.loops
+    .map(
+      (loop, index) =>
+        `  n${index}["${escapeMermaid(loop.title)}<br/>${statusIcon(loop.status)} ${loop.status} · ` +
+        `${loop.currentIteration}/${loop.maxIterations}"]\n  class n${index} ${loop.status};`
+    )
+    .join("\n");
   const indexes = new Map(status.loops.map((loop, index) => [loop.id, index]));
-  const edges = status.loops.flatMap((loop, targetIndex) =>
-    loop.dependsOn.map((dependency) => {
-      const sourceIndex = indexes.get(dependency);
-      return sourceIndex === undefined ? "" : `  n${sourceIndex} --> n${targetIndex}`;
-    })
-  ).filter(Boolean).join("\n");
+  const edges = status.loops
+    .flatMap((loop, targetIndex) =>
+      loop.dependsOn.map((dependency) => {
+        const sourceIndex = indexes.get(dependency);
+        return sourceIndex === undefined ? "" : `  n${sourceIndex} --> n${targetIndex}`;
+      })
+    )
+    .filter(Boolean)
+    .join("\n");
 
-  return `# LoopGraph Live Status\n\n` +
+  return (
+    `# LoopGraph Live Status\n\n` +
     `> ${escapeMarkdown(status.activity)}\n\n` +
     `- Run: \`${status.runId}\`\n` +
     `- Graph: ${escapeMarkdown(status.graphName)}\n` +
@@ -407,7 +433,8 @@ function formatStatusMarkdown(status: StatusFile): string {
     "  classDef failed fill:#fecaca,stroke:#b91c1c,color:#450a0a;\n" +
     "  classDef cancelled fill:#e5e7eb,stroke:#6b7280,color:#111827;\n```\n\n" +
     `## All loops\n\n| Loop | Status | Iteration | Waiting for | Objective |\n` +
-    `|---|---|---:|---|---|\n${rows}\n`;
+    `|---|---|---:|---|---|\n${rows}\n`
+  );
 }
 
 function formatProgress(completed: number, total: number): string {
@@ -447,9 +474,10 @@ function processExists(pid: number): boolean {
 }
 
 function formatLoopResultMarkdown(result: LoopResult): string {
-  const handoff = result.handoff.length > 0
-    ? result.handoff.map((entry) => `- ${entry}`).join("\n")
-    : "- No handoff notes.";
+  const handoff =
+    result.handoff.length > 0
+      ? result.handoff.map((entry) => `- ${entry}`).join("\n")
+      : "- No handoff notes.";
 
   return `# ${result.loopId}\n\nStatus: ${result.status}\nIterations used: ${result.iterationsUsed}\n\n## Summary\n\n${result.summary}\n\n## Handoff\n\n${handoff}\n`;
 }

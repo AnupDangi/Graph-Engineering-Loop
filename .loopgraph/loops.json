@@ -84,6 +84,10 @@
       ],
       "completionConditions": [
         {
+          "type": "fileExists",
+          "path": "packages/cli/src/compiler.ts"
+        },
+        {
           "type": "assertion",
           "description": "Graph compilation consumes bounded architectural evidence while preserving valid LoopGraph version 1 output and no-provider compatibility."
         }
@@ -104,6 +108,10 @@
         "graph-context-contract"
       ],
       "completionConditions": [
+        {
+          "type": "fileExists",
+          "path": "packages/core/src/workspace/worktree.ts"
+        },
         {
           "type": "assertion",
           "description": "Independent loops can execute in isolated Git worktrees and return commit and changed-file evidence without self-merging."
@@ -127,6 +135,10 @@
       ],
       "completionConditions": [
         {
+          "type": "fileExists",
+          "path": "packages/core/src/planning/conflict.ts"
+        },
+        {
           "type": "assertion",
           "description": "The scheduler deterministically serializes unsafe overlaps and records evidence for every graph-based decision."
         }
@@ -147,6 +159,10 @@
         "conflict-and-impact-planning"
       ],
       "completionConditions": [
+        {
+          "type": "fileExists",
+          "path": "packages/core/src/workspace/integration.ts"
+        },
         {
           "type": "command",
           "command": "npm test",

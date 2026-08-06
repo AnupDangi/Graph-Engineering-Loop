@@ -103,7 +103,9 @@ async function waitForResponse(path: string, signal: AbortSignal): Promise<unkno
       return JSON.parse(await readFile(path, "utf8")) as unknown;
     } catch (error) {
       if (!isMissingFileError(error)) {
-        throw new Error(`Unable to read interactive response ${path}: ${formatError(error)}`);
+        throw new Error(`Unable to read interactive response ${path}: ${formatError(error)}`, {
+          cause: error
+        });
       }
     }
 
@@ -116,10 +118,14 @@ async function waitForResponse(path: string, signal: AbortSignal): Promise<unkno
 function waitForPoll(signal: AbortSignal): Promise<void> {
   return new Promise((resolvePromise) => {
     const timeout = setTimeout(resolvePromise, 200);
-    signal.addEventListener("abort", () => {
-      clearTimeout(timeout);
-      resolvePromise();
-    }, { once: true });
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timeout);
+        resolvePromise();
+      },
+      { once: true }
+    );
   });
 }
 
@@ -144,17 +150,13 @@ function normalizeInteractiveResult(output: unknown, request: LoopExecutionReque
 
   return {
     status,
-    summary: typeof record.summary === "string"
-      ? record.summary
-      : `Claude Code executed ${request.loop.id}.`,
+    summary: typeof record.summary === "string" ? record.summary : `Claude Code executed ${request.loop.id}.`,
     completedTasks: stringArray(record.completedTasks),
     remainingWork: stringArray(record.remainingWork),
     changedFiles: stringArray(record.changedFiles),
     commandsRun: Array.isArray(record.commandsRun) ? record.commandsRun : [],
     completionEvidence: Array.isArray(record.completionEvidence) ? record.completionEvidence : [],
-    handoff: typeof record.handoff === "string" || Array.isArray(record.handoff)
-      ? record.handoff
-      : [],
+    handoff: typeof record.handoff === "string" || Array.isArray(record.handoff) ? record.handoff : [],
     blockedReason: typeof record.blockedReason === "string" ? record.blockedReason : null
   };
 }

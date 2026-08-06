@@ -2,11 +2,7 @@ import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve, relative } from "node:path";
-import type {
-  CompletionCondition,
-  ConditionEvidence,
-  LoopExecutionResult
-} from "../schema/types.js";
+import type { CompletionCondition, ConditionEvidence, LoopExecutionResult } from "../schema/types.js";
 
 export interface CompletionEvaluation {
   passed: boolean;
@@ -93,7 +89,11 @@ async function evaluateCondition(
       }
     }
     case "command": {
-      const commandResult = await runCommand(condition.command, options.projectRoot, options.commandOutputLimit);
+      const commandResult = await runCommand(
+        condition.command,
+        options.projectRoot,
+        options.commandOutputLimit
+      );
       const expectedExitCode = condition.expectExitCode ?? 0;
       return {
         conditionIndex,

@@ -76,7 +76,9 @@ async function waitForResponse(path, signal) {
         }
         catch (error) {
             if (!isMissingFileError(error)) {
-                throw new Error(`Unable to read interactive response ${path}: ${formatError(error)}`);
+                throw new Error(`Unable to read interactive response ${path}: ${formatError(error)}`, {
+                    cause: error
+                });
             }
         }
         await waitForPoll(signal);
@@ -111,17 +113,13 @@ function normalizeInteractiveResult(output, request) {
     const status = normalizeStatus(record.status);
     return {
         status,
-        summary: typeof record.summary === "string"
-            ? record.summary
-            : `Claude Code executed ${request.loop.id}.`,
+        summary: typeof record.summary === "string" ? record.summary : `Claude Code executed ${request.loop.id}.`,
         completedTasks: stringArray(record.completedTasks),
         remainingWork: stringArray(record.remainingWork),
         changedFiles: stringArray(record.changedFiles),
         commandsRun: Array.isArray(record.commandsRun) ? record.commandsRun : [],
         completionEvidence: Array.isArray(record.completionEvidence) ? record.completionEvidence : [],
-        handoff: typeof record.handoff === "string" || Array.isArray(record.handoff)
-            ? record.handoff
-            : [],
+        handoff: typeof record.handoff === "string" || Array.isArray(record.handoff) ? record.handoff : [],
         blockedReason: typeof record.blockedReason === "string" ? record.blockedReason : null
     };
 }

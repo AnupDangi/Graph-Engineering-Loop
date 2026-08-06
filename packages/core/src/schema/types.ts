@@ -1,9 +1,7 @@
+import type { ProjectGraphContext } from "../context/project-graph-provider.js";
+
 export type CompletionCondition =
-  | CommandCondition
-  | FileExistsCondition
-  | FileContainsCondition
-  | AssertionCondition
-  | AllCondition;
+  CommandCondition | FileExistsCondition | FileContainsCondition | AssertionCondition | AllCondition;
 
 export interface CommandCondition {
   type: "command";
@@ -58,22 +56,10 @@ export interface LoopGraph {
   loops: LoopDefinition[];
 }
 
-export type LoopStatus =
-  | "waiting"
-  | "ready"
-  | "running"
-  | "completed"
-  | "blocked"
-  | "failed"
-  | "cancelled";
+export type LoopStatus = "waiting" | "ready" | "running" | "completed" | "blocked" | "failed" | "cancelled";
 
 export type GraphStatus =
-  | "pending"
-  | "running"
-  | "completed"
-  | "completed_with_blocks"
-  | "failed"
-  | "cancelled";
+  "pending" | "running" | "completed" | "completed_with_blocks" | "failed" | "cancelled";
 
 export interface ConditionEvidence {
   conditionIndex: number;
@@ -109,7 +95,7 @@ export interface LoopExecutionRequest {
   maxIterations: number;
   previousResult?: LoopExecutionResult;
   projectRoot: string;
-  projectGraphContext?: import("../context/project-graph-provider.js").ProjectGraphContext;
+  projectGraphContext?: ProjectGraphContext;
 }
 
 export type AdapterLoopStatus = "complete" | "incomplete" | "blocked" | "failed";
@@ -140,10 +126,7 @@ export interface HarnessAdapter {
 
   compileGraph?(input: GraphCompilationInput): Promise<LoopGraph>;
 
-  executeLoop(
-    request: LoopExecutionRequest,
-    signal: AbortSignal
-  ): Promise<LoopExecutionResult>;
+  executeLoop(request: LoopExecutionRequest, signal: AbortSignal): Promise<LoopExecutionResult>;
 
   cancelLoop?(loopId: string): Promise<void>;
 

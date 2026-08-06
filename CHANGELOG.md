@@ -1,12 +1,31 @@
 # Changelog
 
+## 0.3.0
+
+- Added `loopgraph status [--watch]` to inspect the live graph whose nodes are loops.
+- Added isolated Git worktree execution with `--isolated`: each independent loop
+  runs in its own `loop/<id>` worktree, completed branches merge into the base
+  branch before integration loops, and worktrees are cleaned up afterward.
+- Added conflict-aware scheduling with `--plan-conflicts <ratio>`: ready loops
+  whose planned write sets overlap above the threshold are never started in the
+  same batch.
+- Added graph-aware requirements compilation: when a project-graph provider is
+  configured, compiled graphs align loops with architectural communities and
+  add an integration loop, with a deterministic no-provider fallback.
+- Added `metadata.integration: true` loop marker for supervisor-controlled
+  merge-before-verify behavior.
+- Fixed `npm run typecheck` wiping build output (`tsc --clean` at the end).
+- Added ESLint and Prettier tooling and enforced lint in CI.
+- Marked fake, stdio, and headless Claude adapters as isolated-worktree capable.
+- The project dogfoods `.loopgraph/loops.json` as its durable backlog; the full
+  graph now runs to completion through the runtime.
+
 ## 0.2.4
 
 - Clearer CLI errors for missing spaces (`validate.loopgraph/...`) and missing `.loopgraph/loops.json`.
 - Treat sentence prompts that mention `.txt`/`.md` as prompts, not missing paths.
 - Keep `.loopgraph/` path resolution scoped to `--project-root`.
 - Added Cursor `/loop-graph` command docs.
-
 
 ## 0.2.3
 

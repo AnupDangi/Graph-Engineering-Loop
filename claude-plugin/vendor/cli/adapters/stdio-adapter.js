@@ -7,7 +7,7 @@ export class StdioAdapter {
         supportsSubagents: true,
         supportsResume: false,
         supportsStructuredOutput: true,
-        supportsIsolatedWorktrees: false
+        supportsIsolatedWorktrees: true
     };
     context;
     constructor(options) {

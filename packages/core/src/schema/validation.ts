@@ -177,7 +177,9 @@ function validateDependencies(
     issues.push({ path: "$.loops", message: "Graph must contain at least one root loop" });
   }
 
-  const terminalCount = loops.filter((loop) => typeof loop.id === "string" && !dependedOn.has(loop.id)).length;
+  const terminalCount = loops.filter(
+    (loop) => typeof loop.id === "string" && !dependedOn.has(loop.id)
+  ).length;
   if (terminalCount === 0) {
     issues.push({ path: "$.loops", message: "Graph must contain at least one terminal loop" });
   }

@@ -5,7 +5,9 @@ import { constants, readFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve, sep } from "node:path";
 import {
   GraphRuntime,
+  IntegrationSupervisor,
   LoopGraphFiles,
+  WorktreeManager,
   createRunMetadata,
   isTerminalGraphStatus,
   parseLoopGraphJson,
@@ -13,13 +15,15 @@ import {
   type HarnessAdapter,
   type LoopGraph,
   type LoopStatus,
-  type ProjectGraphProvider
+  type ProjectGraphProvider,
+  type StatusFile
 } from "graph-engineering-loop-core";
 import { ClaudeHeadlessAdapter } from "./adapters/claude-adapter.js";
 import { FakeAdapter } from "./adapters/fake-adapter.js";
 import { InteractiveAdapter } from "./adapters/interactive-adapter.js";
 import { StdioAdapter } from "./adapters/stdio-adapter.js";
 import { GraphifyCliProvider } from "./context/graphify-cli-provider.js";
+import { compileRequirementsToGraph, compileRequirementsWithGraph } from "./compiler.js";
 
 const EXIT_SUCCESS = 0;
 const EXIT_RUNTIME_FAILURE = 1;
@@ -43,8 +47,11 @@ interface CliOptions {
   graphifyGraphPath?: string;
   projectRoot: string;
   maxConcurrency?: number;
+  maxOverlapRatio?: number;
+  isolated: boolean;
   dryRun: boolean;
   json: boolean;
+  watch: boolean;
 }
 
 async function main(args: string[]): Promise<number> {
@@ -104,14 +111,20 @@ async function main(args: string[]): Promise<number> {
     return cancelGraph(options);
   }
 
-  console.error("Usage: loopgraph <run|cancel|validate> [input] [--adapter fake|claude|interactive|stdio]");
+  if (options.command === "status") {
+    return statusGraph(options);
+  }
+
+  console.error(
+    "Usage: loopgraph <run|cancel|status|validate> [input] [--adapter fake|claude|interactive|stdio]"
+  );
   return EXIT_INVALID_ARGUMENTS;
 }
 
 async function runGraph(options: CliOptions): Promise<number> {
   const adapter = createAdapter(options.adapter, options);
   const projectGraphProvider = createProjectGraphProvider(options);
-  const graph = await resolveGraphInput(options, adapter);
+  const graph = await resolveGraphInput(options, adapter, projectGraphProvider);
   const files = new LoopGraphFiles(options.projectRoot);
   const metadata = createRunMetadata(graph, options.projectRoot);
 
@@ -119,6 +132,15 @@ async function runGraph(options: CliOptions): Promise<number> {
     printGraphSummary(graph, options);
     return EXIT_SUCCESS;
   }
+
+  const isolated = options.isolated && adapter.capabilities.supportsIsolatedWorktrees;
+  const worktreeManager = isolated ? new WorktreeManager(options.projectRoot) : undefined;
+  const integrationSupervisor =
+    worktreeManager === undefined ? undefined : new IntegrationSupervisor(worktreeManager);
+  const isolatedLoopIds =
+    worktreeManager === undefined
+      ? undefined
+      : graph.loops.filter((loop) => loop.metadata?.integration !== true).map((loop) => loop.id);
 
   await files.ensure();
   await files.createLock(metadata);
@@ -135,9 +157,17 @@ async function runGraph(options: CliOptions): Promise<number> {
       projectRoot: options.projectRoot,
       maxConcurrentLoops: options.maxConcurrency,
       projectGraphProvider,
+      worktreeManager,
+      integrationSupervisor,
+      isolatedLoopIds,
+      maxOverlapRatio: options.maxOverlapRatio,
       hooks: files.hooks(metadata, graph)
     });
     const result = await runtime.run(abortController.signal);
+
+    if (worktreeManager !== undefined && integrationSupervisor !== undefined) {
+      await integrationSupervisor.finalize(graph, result.results);
+    }
 
     if (options.json) {
       console.log(JSON.stringify(result, null, 2));
@@ -190,7 +220,117 @@ async function cancelGraph(options: CliOptions): Promise<number> {
   return EXIT_CANCELLED;
 }
 
-async function resolveGraphInput(options: CliOptions, adapter: HarnessAdapter): Promise<LoopGraph> {
+async function statusGraph(options: CliOptions): Promise<number> {
+  const files = new LoopGraphFiles(options.projectRoot);
+
+  if (options.watch) {
+    return watchStatusGraph(files, options);
+  }
+
+  const status = await readStatusFile(files.statusPath);
+  if (status === null) {
+    console.error(`No LoopGraph status found at ${files.statusPath}. Run a graph first.`);
+    return EXIT_RUNTIME_FAILURE;
+  }
+
+  if (options.json) {
+    console.log(JSON.stringify(status, null, 2));
+    return exitCodeForStatus(status.graphStatus);
+  }
+
+  printStatus(status);
+  return exitCodeForStatus(status.graphStatus);
+}
+
+async function watchStatusGraph(files: LoopGraphFiles, options: CliOptions): Promise<number> {
+  let status = await readStatusFile(files.statusPath);
+  if (status === null) {
+    console.error(`No LoopGraph status found at ${files.statusPath}. Run a graph first.`);
+    return EXIT_RUNTIME_FAILURE;
+  }
+
+  for (;;) {
+    if (options.json) {
+      console.log(JSON.stringify(status, null, 2));
+      return exitCodeForStatus(status.graphStatus);
+    }
+
+    clearTerminal();
+    printStatus(status);
+
+    if (isTerminalGraphStatus(status.graphStatus)) {
+      return exitCodeForStatus(status.graphStatus);
+    }
+
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500));
+    const next = await readStatusFile(files.statusPath);
+    if (next !== null) {
+      status = next;
+    }
+  }
+}
+
+function clearTerminal(): void {
+  if (process.stdout.isTTY) {
+    process.stdout.write("\x1b[2J\x1b[H");
+  }
+}
+
+function printStatus(status: StatusFile): void {
+  const graphIcon = graphStatusIcon(status.graphStatus);
+  console.log(`\n${graphIcon} ${status.graphName} — ${status.graphStatus}`);
+  console.log(`  Run:     ${status.runId}`);
+  console.log(`  Goal:    ${status.graphGoal}`);
+  console.log(
+    `  Progress: ${formatProgressBar(status.completedLoops, status.totalLoops)} ${status.completedLoops}/${status.totalLoops}`
+  );
+  console.log(`  Activity: ${status.activity}`);
+  console.log(`  Updated:  ${status.updatedAt}`);
+  console.log("");
+  console.log("  Loop                        Status         Iteration   Waiting for");
+  console.log("  --------------------------- -------------- ----------- ------------");
+
+  for (const loop of status.loops) {
+    const waiting = loop.waitingFor.length > 0 ? loop.waitingFor.join(", ") : "—";
+    console.log(
+      `  ${loop.id.padEnd(27)} ${`${loop.status}`.padEnd(14)} ${String(loop.currentIteration).padStart(3)}/${String(loop.maxIterations).padEnd(3)} ${waiting}`
+    );
+  }
+
+  console.log(`\n  Live file: .loopgraph/status.json`);
+}
+
+function formatProgressBar(completed: number, total: number): string {
+  const width = 20;
+  const filled = total === 0 ? 0 : Math.round((completed / total) * width);
+  return `[${"█".repeat(filled)}${"░".repeat(width - filled)}]`;
+}
+
+function graphStatusIcon(status: GraphStatus): string {
+  const icons: Record<GraphStatus, string> = {
+    pending: "⏳",
+    running: "🔄",
+    completed: "✅",
+    completed_with_blocks: "⚠️",
+    failed: "❌",
+    cancelled: "🛑"
+  };
+  return icons[status];
+}
+
+async function readStatusFile(path: string): Promise<StatusFile | null> {
+  try {
+    return JSON.parse(await readFile(path, "utf8")) as StatusFile;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveGraphInput(
+  options: CliOptions,
+  adapter: HarnessAdapter,
+  projectGraphProvider?: ProjectGraphProvider
+): Promise<LoopGraph> {
   const explicitPath = options.file ?? options.input;
 
   if (explicitPath !== undefined) {
@@ -199,7 +339,10 @@ async function resolveGraphInput(options: CliOptions, adapter: HarnessAdapter): 
       throw new Error(`Input path does not exist: ${stripAtPrefix(explicitPath)}`);
     }
     if (path === null) {
-      return writeCompiledGraph(options.projectRoot, await compileGraph(options, adapter, explicitPath, "prompt"));
+      return writeCompiledGraph(
+        options.projectRoot,
+        await compileGraph(options, adapter, projectGraphProvider, explicitPath, "prompt")
+      );
     }
 
     const content = await readFile(path, "utf8");
@@ -208,7 +351,10 @@ async function resolveGraphInput(options: CliOptions, adapter: HarnessAdapter): 
       return graph;
     }
 
-    return writeCompiledGraph(options.projectRoot, await compileGraph(options, adapter, content, "file"));
+    return writeCompiledGraph(
+      options.projectRoot,
+      await compileGraph(options, adapter, projectGraphProvider, content, "file")
+    );
   }
 
   const projectGraph = resolve(options.projectRoot, ".loopgraph/loops.json");
@@ -222,10 +368,15 @@ async function resolveGraphInput(options: CliOptions, adapter: HarnessAdapter): 
   }
 
   if (options.input !== undefined) {
-    return writeCompiledGraph(options.projectRoot, await compileGraph(options, adapter, options.input, "prompt"));
+    return writeCompiledGraph(
+      options.projectRoot,
+      await compileGraph(options, adapter, projectGraphProvider, options.input, "prompt")
+    );
   }
 
-  throw new Error("No graph or requirements supplied. Provide a prompt, a requirements file, or .loopgraph/loops.json.");
+  throw new Error(
+    "No graph or requirements supplied. Provide a prompt, a requirements file, or .loopgraph/loops.json."
+  );
 }
 
 async function resolveExistingInputPath(options: CliOptions, input: string): Promise<string> {
@@ -252,7 +403,11 @@ async function resolveOptionalInputPath(options: CliOptions, input: string): Pro
 
   // Durable runtime files are project-scoped. Never resolve another cwd's
   // .loopgraph/ artifact when --project-root points elsewhere.
-  if (stripped === ".loopgraph/loops.json" || stripped.startsWith(`.loopgraph${sep}`) || stripped.startsWith(".loopgraph/")) {
+  if (
+    stripped === ".loopgraph/loops.json" ||
+    stripped.startsWith(`.loopgraph${sep}`) ||
+    stripped.startsWith(".loopgraph/")
+  ) {
     if (projectExists) {
       return projectCandidate;
     }
@@ -277,9 +432,26 @@ async function resolveOptionalInputPath(options: CliOptions, input: string): Pro
 async function compileGraph(
   options: CliOptions,
   adapter: HarnessAdapter,
+  projectGraphProvider: ProjectGraphProvider | undefined,
   input: string,
   inputKind: "prompt" | "file" | "directory"
 ): Promise<LoopGraph> {
+  if (projectGraphProvider !== undefined) {
+    try {
+      const graphAware = await compileRequirementsWithGraph(
+        projectGraphProvider,
+        options.projectRoot,
+        input,
+        inputKind
+      );
+      if (graphAware !== null) {
+        return graphAware;
+      }
+    } catch {
+      // Fall back to the default compiler when the graph provider is unavailable.
+    }
+  }
+
   if (adapter.compileGraph !== undefined) {
     return adapter.compileGraph({
       projectRoot: options.projectRoot,
@@ -289,76 +461,6 @@ async function compileGraph(
   }
 
   return compileRequirementsToGraph(input, inputKind);
-}
-
-function compileRequirementsToGraph(requirements: string, sourceLabel: string): LoopGraph {
-  const trimmedGoal = requirements.trim().replace(/\s+/g, " ").slice(0, 240);
-  const goal = trimmedGoal.length > 0 ? trimmedGoal : `Implement requirements from ${sourceLabel}.`;
-
-  return {
-    $schema: "https://loopgraph.dev/schemas/loops.v1.json",
-    version: 1,
-    name: "generated-loopgraph",
-    goal,
-    defaults: {
-      maxIterations: 4,
-      maxConcurrentLoops: 2
-    },
-    loops: [
-      {
-        id: "foundation",
-        title: "Foundation and plan",
-        objective: "Inspect the project and requirements, then establish the implementation plan and shared contracts.",
-        tasks: [
-          "Inspect repository structure",
-          "Identify implementation boundaries",
-          "Document contracts and validation approach"
-        ],
-        dependsOn: [],
-        completionConditions: [
-          {
-            type: "assertion",
-            description: "The project structure, implementation boundaries, and validation approach are understood and represented in durable files."
-          }
-        ]
-      },
-      {
-        id: "implementation",
-        title: "Implementation workstream",
-        objective: "Implement the requested behavior while respecting the project architecture.",
-        tasks: [
-          "Make focused source changes",
-          "Add or update tests",
-          "Keep generated context minimal"
-        ],
-        dependsOn: ["foundation"],
-        completionConditions: [
-          {
-            type: "assertion",
-            description: "The requested implementation is present in source files with appropriate tests or verification."
-          }
-        ]
-      },
-      {
-        id: "verification",
-        title: "Final verification",
-        objective: "Run validation, fix defects, and produce a concise handoff.",
-        tasks: [
-          "Run relevant checks",
-          "Fix validation failures",
-          "Write final handoff"
-        ],
-        dependsOn: ["implementation"],
-        completionConditions: [
-          {
-            type: "assertion",
-            description: "The requested goal is verified and remaining limitations are documented."
-          }
-        ],
-        maxIterations: 5
-      }
-    ]
-  };
 }
 
 async function writeCompiledGraph(projectRoot: string, graph: LoopGraph): Promise<LoopGraph> {
@@ -409,8 +511,10 @@ function parseArgs(args: string[]): CliOptions {
     adapter: "fake",
     projectGraph: "none",
     projectRoot: process.cwd(),
+    isolated: false,
     dryRun: false,
-    json: false
+    json: false,
+    watch: false
   };
 
   const positional: string[] = [];
@@ -463,13 +567,28 @@ function parseArgs(args: string[]): CliOptions {
         options.projectRoot = resolve(requireValue(args, ++index, "--project-root"));
         break;
       case "--max-concurrency":
-        options.maxConcurrency = parsePositiveInteger(requireValue(args, ++index, "--max-concurrency"), "--max-concurrency");
+        options.maxConcurrency = parsePositiveInteger(
+          requireValue(args, ++index, "--max-concurrency"),
+          "--max-concurrency"
+        );
+        break;
+      case "--plan-conflicts":
+        options.maxOverlapRatio = parseOverlapRatio(
+          requireValue(args, ++index, "--plan-conflicts"),
+          "--plan-conflicts"
+        );
+        break;
+      case "--isolated":
+        options.isolated = true;
         break;
       case "--dry-run":
         options.dryRun = true;
         break;
       case "--json":
         options.json = true;
+        break;
+      case "--watch":
+        options.watch = true;
         break;
       default:
         positional.push(arg);
@@ -499,7 +618,7 @@ function detectGluedCommand(arg: string | undefined): string | null {
         "",
         "Examples:",
         "  npx graph-engineering-loop-workspace validate .loopgraph/loops.json",
-        "  npx graph-engineering-loop-workspace run \"Build auth and a dashboard\" --adapter fake"
+        '  npx graph-engineering-loop-workspace run "Build auth and a dashboard" --adapter fake'
       ].join("\n");
     }
   }
@@ -520,6 +639,15 @@ function parsePositiveInteger(value: string, flag: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`${flag} must be a positive integer`);
+  }
+
+  return parsed;
+}
+
+function parseOverlapRatio(value: string, flag: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error(`${flag} must be a ratio between 0 and 1`);
   }
 
   return parsed;
@@ -553,7 +681,13 @@ function looksLikePath(input: string): boolean {
   }
 
   // Sentence-like prompts that merely mention a file extension are not paths.
-  if (/\s/.test(stripped) && !stripped.startsWith(".") && !stripped.startsWith("/") && !stripped.includes("/") && !stripped.includes(sep)) {
+  if (
+    /\s/.test(stripped) &&
+    !stripped.startsWith(".") &&
+    !stripped.startsWith("/") &&
+    !stripped.includes("/") &&
+    !stripped.includes(sep)
+  ) {
     return false;
   }
 
@@ -584,17 +718,24 @@ Usage:
   graph-engineering-loop run <prompt-or-path> [options]
   graph-engineering-loop validate <loops.json> [--project-root <path>]
   graph-engineering-loop cancel [--project-root <path>]
+  graph-engineering-loop status [--watch] [--project-root <path>]
 
 Commands:
   run       Compile or execute a completion-driven loop graph
   validate  Validate a loops.json graph without executing it
   cancel    Cancel the active run for a project
+  status    Show the live graph status (nodes are loops)
+            Use --watch to poll until the graph reaches a terminal state
 
 Run options:
   --adapter <fake|claude|interactive|stdio>
   --adapter-command <command>       Required for the stdio adapter
   --project-root <path>             Defaults to the current directory
   --max-concurrency <number>
+  --isolated                        Run independent loops in isolated Git worktrees
+                                    and integrate branches before verification
+  --plan-conflicts <ratio>          Serialize loops whose planned write sets
+                                    overlap above the given ratio (0 to 1)
   --claude-path <path>
   --claude-permission-mode <mode>
   --claude-max-budget-usd <amount>
@@ -605,6 +746,9 @@ Run options:
   --dry-run
   --json
 
+Status options:
+  --watch   Poll until the graph reaches a terminal state
+
 Global:
   -h, --help
   -v, --version`);
@@ -612,9 +756,9 @@ Global:
 
 function readCliVersion(): string {
   try {
-    const packageJson = JSON.parse(
-      readFileSync(new URL("../package.json", import.meta.url), "utf8")
-    ) as { version?: string };
+    const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+      version?: string;
+    };
     return packageJson.version ?? "unknown";
   } catch {
     return "unknown";

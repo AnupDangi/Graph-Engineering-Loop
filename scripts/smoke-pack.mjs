@@ -19,33 +19,28 @@ await writeFile(
   `${JSON.stringify({ name: "loopgraph-pack-smoke", private: true }, null, 2)}\n`,
   "utf8"
 );
-await run("npm", [
-  "install",
-  "--cache",
-  cacheRoot,
-  "--offline",
-  "--no-audit",
-  "--no-fund",
-  "--ignore-scripts",
-  join(artifactRoot, coreTarball),
-  join(artifactRoot, cliTarball)
-], projectRoot);
+await run(
+  "npm",
+  [
+    "install",
+    "--cache",
+    cacheRoot,
+    "--offline",
+    "--no-audit",
+    "--no-fund",
+    "--ignore-scripts",
+    join(artifactRoot, coreTarball),
+    join(artifactRoot, cliTarball)
+  ],
+  projectRoot
+);
 
 const binary = join(projectRoot, "node_modules", ".bin", "graph-engineering-loop");
 await run(binary, ["--version"], projectRoot);
 await run(binary, ["validate", graphPath, "--project-root", projectRoot], projectRoot);
-await run(binary, [
-  "run",
-  graphPath,
-  "--adapter",
-  "fake",
-  "--project-root",
-  projectRoot
-], projectRoot);
+await run(binary, ["run", graphPath, "--adapter", "fake", "--project-root", projectRoot], projectRoot);
 
-const state = JSON.parse(
-  await readFile(join(projectRoot, ".loopgraph", "state.json"), "utf8")
-);
+const state = JSON.parse(await readFile(join(projectRoot, ".loopgraph", "state.json"), "utf8"));
 if (state.status !== "completed") {
   throw new Error(`Packed install smoke ended with state ${state.status}`);
 }
@@ -53,16 +48,11 @@ if (state.status !== "completed") {
 console.log(`Packed install smoke passed: ${cliTarball}`);
 
 async function pack(workspace) {
-  const output = await capture("npm", [
-    "pack",
-    "--cache",
-    cacheRoot,
-    "--workspace",
-    workspace,
-    "--pack-destination",
-    artifactRoot,
-    "--json"
-  ], repoRoot);
+  const output = await capture(
+    "npm",
+    ["pack", "--cache", cacheRoot, "--workspace", workspace, "--pack-destination", artifactRoot, "--json"],
+    repoRoot
+  );
   const details = JSON.parse(output);
   const filename = details?.[0]?.filename;
   if (typeof filename !== "string") {

@@ -1,8 +1,5 @@
 import { assertValidLoopGraph } from "../schema/validation.js";
-import type {
-  ProjectGraphContext,
-  ProjectGraphProvider
-} from "../context/project-graph-provider.js";
+import type { ProjectGraphContext, ProjectGraphProvider } from "../context/project-graph-provider.js";
 import type {
   ConditionEvidence,
   GraphStatus,
@@ -14,6 +11,9 @@ import type {
   LoopStatus
 } from "../schema/types.js";
 import { evaluateCompletionConditions } from "./completion-evaluator.js";
+import { assessOverlap, type PlannedWriteSet } from "../planning/conflict.js";
+import type { WorktreeManager } from "../workspace/worktree.js";
+import type { IntegrationSupervisor } from "../workspace/integration.js";
 
 export interface LoopRuntimeState {
   status: LoopStatus;
@@ -34,6 +34,10 @@ export interface GraphRuntimeOptions {
   projectRoot: string;
   maxConcurrentLoops?: number;
   projectGraphProvider?: ProjectGraphProvider;
+  worktreeManager?: WorktreeManager;
+  integrationSupervisor?: IntegrationSupervisor;
+  isolatedLoopIds?: string[];
+  maxOverlapRatio?: number;
   hooks?: GraphRuntimeHooks;
 }
 
@@ -86,8 +90,13 @@ export class GraphRuntime {
   private readonly loopOrder: string[];
   private readonly states = new Map<string, LoopRuntimeState>();
   private readonly results = new Map<string, LoopResult>();
+  private readonly loopProjectRoots = new Map<string, string>();
   private readonly maxConcurrentLoops: number;
   private readonly projectGraphProvider?: ProjectGraphProvider;
+  private readonly worktreeManager?: WorktreeManager;
+  private readonly integrationSupervisor?: IntegrationSupervisor;
+  private readonly isolatedLoopIds: Set<string>;
+  private readonly maxOverlapRatio?: number;
   private readonly hooks: GraphRuntimeHooks;
 
   constructor(options: GraphRuntimeOptions) {
@@ -96,10 +105,12 @@ export class GraphRuntime {
     this.projectRoot = options.projectRoot;
     this.loopOrder = this.graph.loops.map((loop) => loop.id);
     this.maxConcurrentLoops =
-      options.maxConcurrentLoops ??
-      this.graph.defaults?.maxConcurrentLoops ??
-      DEFAULT_MAX_CONCURRENT_LOOPS;
+      options.maxConcurrentLoops ?? this.graph.defaults?.maxConcurrentLoops ?? DEFAULT_MAX_CONCURRENT_LOOPS;
     this.projectGraphProvider = options.projectGraphProvider;
+    this.worktreeManager = options.worktreeManager;
+    this.integrationSupervisor = options.integrationSupervisor;
+    this.isolatedLoopIds = new Set(options.isolatedLoopIds ?? []);
+    this.maxOverlapRatio = options.maxOverlapRatio;
     this.hooks = options.hooks ?? {};
 
     for (const loop of this.graph.loops) {
@@ -116,6 +127,7 @@ export class GraphRuntime {
     let adapterInitialized = false;
     let providerInitialized = false;
     let runError: unknown;
+    let result: GraphRunResult | undefined;
 
     try {
       if (this.projectGraphProvider !== undefined) {
@@ -141,7 +153,10 @@ export class GraphRuntime {
         }
 
         const capacity = this.effectiveConcurrencyLimit() - running.size;
-        const readyLoops = this.getReadyLoops().slice(0, Math.max(0, capacity));
+        const readyLoops = this.selectStartableLoops(this.getReadyLoops(), running).slice(
+          0,
+          Math.max(0, capacity)
+        );
 
         for (const loop of readyLoops) {
           this.states.get(loop.id)!.status = "running";
@@ -163,34 +178,46 @@ export class GraphRuntime {
       await Promise.allSettled(running.values());
       this.refreshStatuses();
 
-      const result = this.toRunResult();
+      result = this.toRunResult();
       await this.hooks.onGraphFinished?.(result);
-      return result;
     } catch (error) {
       runError = error;
-      throw error;
-    } finally {
-      const shutdowns: Promise<void>[] = [];
-      if (adapterInitialized) {
-        shutdowns.push(this.adapter.shutdown());
-      }
-      if (providerInitialized && this.projectGraphProvider !== undefined) {
-        shutdowns.push(this.projectGraphProvider.shutdown());
-      }
-      const shutdownResults = await Promise.allSettled(shutdowns);
-      const rejected = shutdownResults.find(
-        (result): result is PromiseRejectedResult => result.status === "rejected"
-      );
-      if (runError === undefined && rejected !== undefined) {
-        throw rejected.reason;
-      }
     }
+
+    const shutdowns: Promise<void>[] = [];
+    if (adapterInitialized) {
+      shutdowns.push(this.adapter.shutdown());
+    }
+    if (providerInitialized && this.projectGraphProvider !== undefined) {
+      shutdowns.push(this.projectGraphProvider.shutdown());
+    }
+    const shutdownResults = await Promise.allSettled(shutdowns);
+    const rejected = shutdownResults.find(
+      (shutdown): shutdown is PromiseRejectedResult => shutdown.status === "rejected"
+    );
+
+    if (runError !== undefined) {
+      throw runError;
+    }
+    if (rejected !== undefined) {
+      throw rejected.reason;
+    }
+
+    return result!;
   }
 
   private async runLoop(loop: LoopDefinition, signal: AbortSignal): Promise<void> {
     const state = this.states.get(loop.id)!;
     const maxIterations = loop.maxIterations ?? this.graph.defaults?.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     let previousResult: LoopExecutionResult | undefined;
+
+    await this.prepareLoopWorkspace(loop);
+    const effectiveProjectRoot = this.effectiveProjectRoot(loop.id);
+
+    if (loop.metadata?.integration === true) {
+      await this.integrateCompletedLoops();
+    }
+
     const projectGraphContext = await this.prepareProjectGraphContext(loop, signal);
 
     while (state.currentIteration < maxIterations) {
@@ -216,7 +243,7 @@ export class GraphRuntime {
             currentIteration: state.currentIteration,
             maxIterations,
             previousResult,
-            projectRoot: this.projectRoot,
+            projectRoot: effectiveProjectRoot,
             projectGraphContext
           },
           signal
@@ -260,11 +287,9 @@ export class GraphRuntime {
         return;
       }
 
-      const completion = await evaluateCompletionConditions(
-        loop.completionConditions,
-        adapterResult,
-        { projectRoot: this.projectRoot }
-      );
+      const completion = await evaluateCompletionConditions(loop.completionConditions, adapterResult, {
+        projectRoot: effectiveProjectRoot
+      });
       await this.hooks.onConditionChecked?.({
         loopId: loop.id,
         iteration: state.currentIteration,
@@ -353,8 +378,8 @@ export class GraphRuntime {
       }
 
       const dependencyStatuses = loop.dependsOn.map((dependency) => this.states.get(dependency)!.status);
-      const blockedDependency = dependencyStatuses.some((status) =>
-        status === "blocked" || status === "failed" || status === "cancelled"
+      const blockedDependency = dependencyStatuses.some(
+        (status) => status === "blocked" || status === "failed" || status === "cancelled"
       );
 
       if (blockedDependency) {
@@ -374,7 +399,9 @@ export class GraphRuntime {
         continue;
       }
 
-      const waitingFor = loop.dependsOn.filter((dependency) => this.states.get(dependency)!.status !== "completed");
+      const waitingFor = loop.dependsOn.filter(
+        (dependency) => this.states.get(dependency)!.status !== "completed"
+      );
       state.waitingFor = waitingFor;
       state.status = waitingFor.length === 0 ? "ready" : "waiting";
     }
@@ -382,6 +409,77 @@ export class GraphRuntime {
 
   private getReadyLoops(): LoopDefinition[] {
     return this.graph.loops.filter((loop) => this.states.get(loop.id)?.status === "ready");
+  }
+
+  private selectStartableLoops(
+    readyLoops: LoopDefinition[],
+    running: Map<string, Promise<void>>
+  ): LoopDefinition[] {
+    if (this.maxOverlapRatio === undefined) {
+      return readyLoops;
+    }
+
+    const selected: LoopDefinition[] = [];
+    const runningIds = [...running.keys()];
+
+    for (const loop of readyLoops) {
+      const conflictsWithRunning = runningIds.some(
+        (runningId) =>
+          assessOverlap(
+            this.touchPlanFor(loop),
+            this.touchPlanFor(this.loopById(runningId)),
+            this.maxOverlapRatio
+          ).serialized
+      );
+      const conflictsWithSelected = selected.some(
+        (other) =>
+          assessOverlap(this.touchPlanFor(loop), this.touchPlanFor(other), this.maxOverlapRatio).serialized
+      );
+
+      if (!conflictsWithRunning && !conflictsWithSelected) {
+        selected.push(loop);
+      }
+    }
+
+    return selected;
+  }
+
+  private loopById(loopId: string): LoopDefinition {
+    const loop = this.graph.loops.find((entry) => entry.id === loopId);
+    if (loop === undefined) {
+      throw new Error(`Unknown loop referenced during scheduling: ${loopId}`);
+    }
+    return loop;
+  }
+
+  private touchPlanFor(loop: LoopDefinition): PlannedWriteSet {
+    const plannedFiles = asStringArray(loop.metadata?.plannedFiles);
+    return {
+      loopId: loop.id,
+      files: [...(loop.sources ?? []), ...plannedFiles]
+    };
+  }
+
+  private async prepareLoopWorkspace(loop: LoopDefinition): Promise<void> {
+    if (!this.isolatedLoopIds.has(loop.id) || this.worktreeManager === undefined) {
+      return;
+    }
+
+    const info = await this.worktreeManager.create(loop.id);
+    this.loopProjectRoots.set(loop.id, info.path);
+  }
+
+  private async integrateCompletedLoops(): Promise<void> {
+    if (this.integrationSupervisor === undefined) {
+      return;
+    }
+
+    const completedResults = [...this.results.values()].filter((result) => result.status === "completed");
+    await this.integrationSupervisor.integrate(this.graph, completedResults);
+  }
+
+  private effectiveProjectRoot(loopId: string): string {
+    return this.loopProjectRoots.get(loopId) ?? this.projectRoot;
   }
 
   private getDependencyResults(loop: LoopDefinition): LoopResult[] {
@@ -492,14 +590,15 @@ export class GraphRuntime {
           {
             ...state,
             waitingFor: [...state.waitingFor],
-            result: state.result === undefined
-              ? undefined
-              : {
-                  ...state.result,
-                  changedFiles: [...state.result.changedFiles],
-                  verification: [...state.result.verification],
-                  handoff: [...state.result.handoff]
-                }
+            result:
+              state.result === undefined
+                ? undefined
+                : {
+                    ...state.result,
+                    changedFiles: [...state.result.changedFiles],
+                    verification: [...state.result.verification],
+                    handoff: [...state.result.handoff]
+                  }
           }
         ])
       )
@@ -513,4 +612,8 @@ function isTerminalLoopStatus(status: LoopStatus): boolean {
 
 function normalizeHandoff(handoff: string | string[]): string[] {
   return Array.isArray(handoff) ? handoff : [handoff].filter(Boolean);
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 }

@@ -22,3 +22,4 @@ tmp/
 .loopgraph/status.md
 .loopgraph/bridge/
 .loopgraph/session.log
+.loopgraph/workspaces/

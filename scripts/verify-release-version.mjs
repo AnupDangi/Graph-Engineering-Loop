@@ -81,7 +81,10 @@ for (const binName of requiredBins) {
   }
 }
 
-for (const [label, pkg] of [["CLI", cli], ["core", core]]) {
+for (const [label, pkg] of [
+  ["CLI", cli],
+  ["core", core]
+]) {
   if (pkg.private === true) {
     throw new Error(`${label} package must be publishable.`);
   }

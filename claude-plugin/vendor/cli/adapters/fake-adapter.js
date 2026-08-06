@@ -7,7 +7,7 @@ export class FakeAdapter {
         supportsSubagents: false,
         supportsResume: false,
         supportsStructuredOutput: true,
-        supportsIsolatedWorktrees: false
+        supportsIsolatedWorktrees: true
     };
     async initialize(_context) {
         return undefined;

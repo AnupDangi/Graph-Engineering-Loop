@@ -17,7 +17,7 @@ export class StdioAdapter implements HarnessAdapter {
     supportsSubagents: true,
     supportsResume: false,
     supportsStructuredOutput: true,
-    supportsIsolatedWorktrees: false
+    supportsIsolatedWorktrees: true
   };
 
   private context?: AdapterInitializationContext;
@@ -29,11 +29,16 @@ export class StdioAdapter implements HarnessAdapter {
   }
 
   async executeLoop(request: LoopExecutionRequest, signal: AbortSignal): Promise<LoopExecutionResult> {
-    const output = await runCommand(this.options.command, {
-      type: "loop.execute",
-      adapterContext: this.context,
-      request
-    }, signal, request.projectRoot);
+    const output = await runCommand(
+      this.options.command,
+      {
+        type: "loop.execute",
+        adapterContext: this.context,
+        request
+      },
+      signal,
+      request.projectRoot
+    );
 
     return normalizeStdioResult(output, request);
   }
@@ -43,12 +48,7 @@ export class StdioAdapter implements HarnessAdapter {
   }
 }
 
-function runCommand(
-  command: string,
-  payload: unknown,
-  signal: AbortSignal,
-  cwd: string
-): Promise<unknown> {
+function runCommand(command: string, payload: unknown, signal: AbortSignal, cwd: string): Promise<unknown> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(command, {
       cwd,

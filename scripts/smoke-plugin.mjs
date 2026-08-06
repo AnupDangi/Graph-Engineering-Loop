@@ -14,41 +14,48 @@ const submissionPath = join(projectRoot, ".loopgraph", "bridge", "submission.jso
 
 await cp(join(repoRoot, "claude-plugin"), pluginRoot, { recursive: true });
 await mkdir(join(projectRoot, ".loopgraph"), { recursive: true });
-await writeFile(graphPath, `${JSON.stringify({
-  version: 1,
-  name: "isolated-plugin-smoke",
-  goal: "Prove the installed plugin is self-contained.",
-  defaults: {
-    maxIterations: 3,
-    maxConcurrentLoops: 1
-  },
-  loops: [
+await writeFile(
+  graphPath,
+  `${JSON.stringify(
     {
-      id: "plugin-worker",
-      objective: "Create plugin-smoke.txt.",
-      dependsOn: [],
-      completionConditions: [
+      version: 1,
+      name: "isolated-plugin-smoke",
+      goal: "Prove the installed plugin is self-contained.",
+      defaults: {
+        maxIterations: 3,
+        maxConcurrentLoops: 1
+      },
+      loops: [
         {
-          type: "fileContains",
-          path: "plugin-smoke.txt",
-          text: "plugin smoke ok"
+          id: "plugin-worker",
+          objective: "Create plugin-smoke.txt.",
+          dependsOn: [],
+          completionConditions: [
+            {
+              type: "fileContains",
+              path: "plugin-smoke.txt",
+              text: "plugin smoke ok"
+            }
+          ]
+        },
+        {
+          id: "verification-worker",
+          objective: "Verify the plugin worker and create verified.txt.",
+          dependsOn: ["plugin-worker"],
+          completionConditions: [
+            {
+              type: "fileContains",
+              path: "verified.txt",
+              text: "graph transition ok"
+            }
+          ]
         }
       ]
     },
-    {
-      id: "verification-worker",
-      objective: "Verify the plugin worker and create verified.txt.",
-      dependsOn: ["plugin-worker"],
-      completionConditions: [
-        {
-          type: "fileContains",
-          path: "verified.txt",
-          text: "graph transition ok"
-        }
-      ]
-    }
-  ]
-}, null, 2)}\n`);
+    null,
+    2
+  )}\n`
+);
 
 if (await commandExists("claude")) {
   const validate = await execFileAsync("claude", ["plugin", "validate", pluginRoot], {
@@ -61,20 +68,17 @@ if (await commandExists("claude")) {
   console.log("Claude CLI not installed; skipped native plugin manifest validation.");
 }
 
-await execFileAsync(join(pluginRoot, "bin", "loopgraph"), [
-  "validate",
-  graphPath,
-  "--project-root",
-  projectRoot
-], { cwd: projectRoot });
+await execFileAsync(
+  join(pluginRoot, "bin", "loopgraph"),
+  ["validate", graphPath, "--project-root", projectRoot],
+  { cwd: projectRoot }
+);
 
-const start = await execFileAsync(join(pluginRoot, "bin", "loopgraph-session"), [
-  "start",
-  "--project-root",
-  projectRoot,
-  "--input",
-  graphPath
-], { cwd: projectRoot });
+const start = await execFileAsync(
+  join(pluginRoot, "bin", "loopgraph-session"),
+  ["start", "--project-root", projectRoot, "--input", graphPath],
+  { cwd: projectRoot }
+);
 const startResult = JSON.parse(start.stdout);
 if (startResult.status !== "work_required") {
   throw new Error(`Expected work_required, received ${start.stdout}`);
@@ -90,12 +94,15 @@ if (!runningStatus.includes("🔄 running") || !runningStatus.includes("flowchar
   throw new Error(`Live status did not show the running dependency graph:\n${runningStatus}`);
 }
 
-const sessionHook = await runWithInput(process.execPath, [
-  join(pluginRoot, "scripts", "session-hook.mjs")
-], projectRoot, JSON.stringify({
-  hook_event_name: "SessionStart",
-  cwd: projectRoot
-}));
+const sessionHook = await runWithInput(
+  process.execPath,
+  [join(pluginRoot, "scripts", "session-hook.mjs")],
+  projectRoot,
+  JSON.stringify({
+    hook_event_name: "SessionStart",
+    cwd: projectRoot
+  })
+);
 const sessionHookOutput = JSON.parse(sessionHook.stdout);
 if (
   !sessionHookOutput.hookSpecificOutput?.additionalContext?.includes("plugin-worker") ||
@@ -104,13 +111,16 @@ if (
   throw new Error(`SessionStart hook did not restore the active loop:\n${sessionHook.stdout}`);
 }
 
-const stopHook = await runWithInput(process.execPath, [
-  join(pluginRoot, "scripts", "session-hook.mjs")
-], projectRoot, JSON.stringify({
-  hook_event_name: "Stop",
-  cwd: projectRoot,
-  stop_hook_active: false
-}));
+const stopHook = await runWithInput(
+  process.execPath,
+  [join(pluginRoot, "scripts", "session-hook.mjs")],
+  projectRoot,
+  JSON.stringify({
+    hook_event_name: "Stop",
+    cwd: projectRoot,
+    stop_hook_active: false
+  })
+);
 const stopHookOutput = JSON.parse(stopHook.stdout);
 if (
   stopHookOutput.decision !== "block" ||
@@ -121,24 +131,30 @@ if (
   throw new Error(`Stop hook did not issue a Ralph-style continuation:\n${stopHook.stdout}`);
 }
 
-const repeatedStopHook = await runWithInput(process.execPath, [
-  join(pluginRoot, "scripts", "session-hook.mjs")
-], projectRoot, JSON.stringify({
-  hook_event_name: "Stop",
-  cwd: projectRoot,
-  stop_hook_active: false
-}));
+const repeatedStopHook = await runWithInput(
+  process.execPath,
+  [join(pluginRoot, "scripts", "session-hook.mjs")],
+  projectRoot,
+  JSON.stringify({
+    hook_event_name: "Stop",
+    cwd: projectRoot,
+    stop_hook_active: false
+  })
+);
 if (JSON.parse(repeatedStopHook.stdout).reason !== stopHookOutput.reason) {
   throw new Error("Stop hook did not repeat the same active-loop contract.");
 }
 
-const guardedStopHook = await runWithInput(process.execPath, [
-  join(pluginRoot, "scripts", "session-hook.mjs")
-], projectRoot, JSON.stringify({
-  hook_event_name: "Stop",
-  cwd: projectRoot,
-  stop_hook_active: true
-}));
+const guardedStopHook = await runWithInput(
+  process.execPath,
+  [join(pluginRoot, "scripts", "session-hook.mjs")],
+  projectRoot,
+  JSON.stringify({
+    hook_event_name: "Stop",
+    cwd: projectRoot,
+    stop_hook_active: true
+  })
+);
 if (guardedStopHook.stdout.trim() !== "") {
   throw new Error(`Recursive Stop hook was not guarded:\n${guardedStopHook.stdout}`);
 }
@@ -206,45 +222,50 @@ if (!finalMarkdown.includes("n0 --> n1") || !finalMarkdown.includes("[███�
 const cancelProjectRoot = join(tempRoot, "cancel-project");
 const cancelGraphPath = join(cancelProjectRoot, ".loopgraph", "loops.json");
 await mkdir(join(cancelProjectRoot, ".loopgraph"), { recursive: true });
-await writeFile(cancelGraphPath, `${JSON.stringify({
-  version: 1,
-  name: "plugin-cancel-smoke",
-  goal: "Prove a waiting plugin run can be cancelled.",
-  defaults: {
-    maxIterations: 2,
-    maxConcurrentLoops: 1
-  },
-  loops: [
+await writeFile(
+  cancelGraphPath,
+  `${JSON.stringify(
     {
-      id: "waiting-worker",
-      objective: "Wait for an interactive response.",
-      dependsOn: [],
-      completionConditions: [
+      version: 1,
+      name: "plugin-cancel-smoke",
+      goal: "Prove a waiting plugin run can be cancelled.",
+      defaults: {
+        maxIterations: 2,
+        maxConcurrentLoops: 1
+      },
+      loops: [
         {
-          type: "assertion",
-          description: "The interactive worker has responded."
+          id: "waiting-worker",
+          objective: "Wait for an interactive response.",
+          dependsOn: [],
+          completionConditions: [
+            {
+              type: "assertion",
+              description: "The interactive worker has responded."
+            }
+          ]
         }
       ]
-    }
-  ]
-}, null, 2)}\n`);
+    },
+    null,
+    2
+  )}\n`
+);
 
-const cancelStart = await execFileAsync(join(pluginRoot, "bin", "loopgraph-session"), [
-  "start",
-  "--project-root",
-  cancelProjectRoot,
-  "--input",
-  cancelGraphPath
-], { cwd: cancelProjectRoot });
+const cancelStart = await execFileAsync(
+  join(pluginRoot, "bin", "loopgraph-session"),
+  ["start", "--project-root", cancelProjectRoot, "--input", cancelGraphPath],
+  { cwd: cancelProjectRoot }
+);
 if (JSON.parse(cancelStart.stdout).status !== "work_required") {
   throw new Error(`Cancel smoke did not start:\n${cancelStart.stdout}`);
 }
 
-const cancel = await runWithInput(join(pluginRoot, "bin", "loopgraph"), [
-  "cancel",
-  "--project-root",
+const cancel = await runWithInput(
+  join(pluginRoot, "bin", "loopgraph"),
+  ["cancel", "--project-root", cancelProjectRoot],
   cancelProjectRoot
-], cancelProjectRoot);
+);
 if (cancel.code !== 3 || !cancel.stdout.includes("Cancelled LoopGraph run")) {
   throw new Error(`Cancel command failed (${cancel.code}):\n${cancel.stdout}\n${cancel.stderr}`);
 }
@@ -254,30 +275,38 @@ if (cancelledState.status !== "cancelled") {
   throw new Error(`Cancel smoke state was ${cancelledState.status}`);
 }
 const cancelledStatus = await readFile(join(cancelProjectRoot, ".loopgraph", "status.md"), "utf8");
-if (!cancelledStatus.includes("Graph cancelled by the operator") || !cancelledStatus.includes("🛑 cancelled")) {
+if (
+  !cancelledStatus.includes("Graph cancelled by the operator") ||
+  !cancelledStatus.includes("🛑 cancelled")
+) {
   throw new Error(`Cancelled status view was not updated:\n${cancelledStatus}`);
 }
 
 console.log(`Isolated plugin smoke passed: ${tempRoot}`);
 
 async function writeSubmission(value) {
-  await writeFile(submissionPath, `${JSON.stringify({
-    ...value,
-    commandsRun: [],
-    completionEvidence: [],
-    handoff: [],
-    blockedReason: null
-  }, null, 2)}\n`);
+  await writeFile(
+    submissionPath,
+    `${JSON.stringify(
+      {
+        ...value,
+        commandsRun: [],
+        completionEvidence: [],
+        handoff: [],
+        blockedReason: null
+      },
+      null,
+      2
+    )}\n`
+  );
 }
 
 async function submitWork() {
-  const result = await execFileAsync(join(pluginRoot, "bin", "loopgraph-session"), [
-    "submit",
-    "--project-root",
-    projectRoot,
-    "--file",
-    submissionPath
-  ], { cwd: projectRoot });
+  const result = await execFileAsync(
+    join(pluginRoot, "bin", "loopgraph-session"),
+    ["submit", "--project-root", projectRoot, "--file", submissionPath],
+    { cwd: projectRoot }
+  );
   return JSON.parse(result.stdout);
 }
 

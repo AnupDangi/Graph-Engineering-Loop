@@ -66,8 +66,7 @@ test("rejects dependency cycles with the cycle path", () => {
   assert.throws(
     () => assertValidLoopGraph(graph),
     (error: unknown) =>
-      error instanceof GraphValidationError &&
-      error.message.includes("Dependency cycle detected")
+      error instanceof GraphValidationError && error.message.includes("Dependency cycle detected")
   );
 });
 
@@ -110,12 +109,10 @@ test("runs a foundation, backend/frontend, integration graph through a fake adap
   const result = await runtime.run();
 
   assert.equal(result.status, "completed");
-  assert.deepEqual(result.results.map((entry) => entry.loopId), [
-    "foundation",
-    "backend",
-    "frontend",
-    "integration"
-  ]);
+  assert.deepEqual(
+    result.results.map((entry) => entry.loopId),
+    ["foundation", "backend", "frontend", "integration"]
+  );
   assert.equal(result.loops.integration.status, "completed");
   assert.deepEqual(adapter.started.slice(0, 1), ["foundation"]);
   assert(adapter.started.indexOf("integration") > adapter.started.indexOf("backend"));
@@ -171,9 +168,10 @@ test("prepares and persists project graph context for each loop", async () => {
     foundation: async (request) => {
       assert.equal(request.projectGraphContext?.provider, "test-graph-provider");
       assert.deepEqual(request.projectGraphContext?.relevantFiles, ["packages/core/src/index.ts"]);
-      const liveState = JSON.parse(
-        await readFile(join(projectRoot, ".loopgraph/state.json"), "utf8")
-      ) as { status: string; loops: Record<string, { status: string; currentIteration: number }> };
+      const liveState = JSON.parse(await readFile(join(projectRoot, ".loopgraph/state.json"), "utf8")) as {
+        status: string;
+        loops: Record<string, { status: string; currentIteration: number }>;
+      };
       assert.equal(liveState.status, "running");
       assert.equal(liveState.loops.foundation.status, "running");
       assert.equal(liveState.loops.foundation.currentIteration, 1);
@@ -235,9 +233,7 @@ test("prepares and persists project graph context for each loop", async () => {
   ) as { provider: string; relevantFiles: string[] };
   assert.equal(persisted.provider, "test-graph-provider");
   assert.deepEqual(persisted.relevantFiles, ["packages/core/src/index.ts"]);
-  const finalStatus = JSON.parse(
-    await readFile(join(projectRoot, ".loopgraph/status.json"), "utf8")
-  ) as {
+  const finalStatus = JSON.parse(await readFile(join(projectRoot, ".loopgraph/status.json"), "utf8")) as {
     graphStatus: string;
     completedLoops: number;
     totalLoops: number;

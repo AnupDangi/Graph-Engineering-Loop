@@ -14,51 +14,60 @@ const graphPath = join(projectRoot, ".loopgraph", "loops.json");
 await run("npm", ["run", "build:plugin"], repoRoot);
 await cp(join(repoRoot, "claude-plugin"), pluginRoot, { recursive: true });
 await mkdir(join(projectRoot, ".loopgraph"), { recursive: true });
-await writeFile(graphPath, `${JSON.stringify({
-  version: 1,
-  name: "claude-plugin-smoke",
-  goal: "Verify the installed Claude Code plugin through its namespaced skill.",
-  defaults: {
-    maxIterations: 1,
-    maxConcurrentLoops: 1
-  },
-  loops: [
+await writeFile(
+  graphPath,
+  `${JSON.stringify(
     {
-      id: "write-plugin-smoke",
-      title: "Write plugin smoke file",
-      objective: "Create claude-plugin-smoke.txt containing exactly 'claude plugin smoke ok'.",
-      tasks: [
-        "Create claude-plugin-smoke.txt with the required content."
-      ],
-      dependsOn: [],
-      completionConditions: [
+      version: 1,
+      name: "claude-plugin-smoke",
+      goal: "Verify the installed Claude Code plugin through its namespaced skill.",
+      defaults: {
+        maxIterations: 1,
+        maxConcurrentLoops: 1
+      },
+      loops: [
         {
-          type: "fileContains",
-          path: "claude-plugin-smoke.txt",
-          text: "claude plugin smoke ok"
+          id: "write-plugin-smoke",
+          title: "Write plugin smoke file",
+          objective: "Create claude-plugin-smoke.txt containing exactly 'claude plugin smoke ok'.",
+          tasks: ["Create claude-plugin-smoke.txt with the required content."],
+          dependsOn: [],
+          completionConditions: [
+            {
+              type: "fileContains",
+              path: "claude-plugin-smoke.txt",
+              text: "claude plugin smoke ok"
+            }
+          ]
         }
       ]
-    }
-  ]
-}, null, 2)}\n`);
+    },
+    null,
+    2
+  )}\n`
+);
 
-await run("claude", [
-  "--plugin-dir",
-  pluginRoot,
-  "-p",
-  `/graph-engineering-loop:loop-graph ${graphPath}`,
-  "--permission-mode",
-  "acceptEdits",
-  "--allowedTools",
-  "Bash,Read,Write,Edit,Glob,Grep",
-  "--max-budget-usd",
-  "2.00",
-  "--effort",
-  "low",
-  "--output-format",
-  "json",
-  "--no-session-persistence"
-], projectRoot);
+await run(
+  "claude",
+  [
+    "--plugin-dir",
+    pluginRoot,
+    "-p",
+    `/graph-engineering-loop:loop-graph ${graphPath}`,
+    "--permission-mode",
+    "acceptEdits",
+    "--allowedTools",
+    "Bash,Read,Write,Edit,Glob,Grep",
+    "--max-budget-usd",
+    "2.00",
+    "--effort",
+    "low",
+    "--output-format",
+    "json",
+    "--no-session-persistence"
+  ],
+  projectRoot
+);
 
 const smokeFile = await readFile(join(projectRoot, "claude-plugin-smoke.txt"), "utf8");
 if (smokeFile.trim() !== "claude plugin smoke ok") {

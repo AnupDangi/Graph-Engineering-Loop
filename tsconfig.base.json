@@ -11,9 +11,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "graph-engineering-loop-core": [
-        "packages/core/src/index.ts"
-      ]
+      "graph-engineering-loop-core": ["packages/core/src/index.ts"]
     }
   }
 }

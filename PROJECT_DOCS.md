@@ -153,14 +153,28 @@ responsibilities. Provider subprocesses disable Graphify query logging, inherit
 runtime cancellation, and reject graph paths that resolve outside the project.
 
 The implementation backlog is dogfooded as `.loopgraph/loops.json` and follows
-this sequence:
+this sequence. The full sequence is implemented as of 0.3.0 and verified by
+running the graph itself through the runtime:
 
-1. Project graph contract and durable context packets.
-2. Graphify CLI provider and opt-in CLI selection.
-3. Graph-aware requirements compilation.
-4. Isolated worktree execution.
-5. Conflict scoring and architecture impact checks.
-6. Supervisor-controlled integration and final verification.
+1. Project graph contract and durable context packets. Implemented.
+2. Graphify CLI provider and opt-in CLI selection. Implemented.
+3. Graph-aware requirements compilation. Implemented in
+   `packages/cli/src/compiler.ts`; when a `ProjectGraphProvider` is configured,
+   compilation queries project communities and emits one loop per community
+   plus an integration loop, falling back to the deterministic template when no
+   provider is available or fewer than two communities are found.
+4. Isolated worktree execution. Implemented in
+   `packages/core/src/workspace/worktree.ts`; `--isolated` runs independent
+   loops in Git worktrees and merges them back under supervisor control.
+5. Conflict scoring and architecture impact checks. Implemented in
+   `packages/core/src/planning/conflict.ts`; `--plan-conflicts <ratio>`
+   serializes ready loops whose planned write sets (`loop.sources` and
+   `loop.metadata.plannedFiles`) overlap above the threshold.
+6. Supervisor-controlled integration and final verification. Implemented in
+   `packages/core/src/workspace/integration.ts`; loops marked
+   `metadata.integration: true` merge completed worker branches in dependency
+   order before running, and the CLI finalizes remaining merges and cleans up
+   worktrees after the run.
 
 ## Recommended Repository Structure
 
@@ -182,6 +196,8 @@ loopgraph/
         graph/
         runtime/
         compiler/
+        planning/
+        workspace/
         adapters/
         errors/
         index.ts
@@ -301,14 +317,8 @@ Minimal example:
       "id": "foundation",
       "title": "Architecture and contracts",
       "objective": "Inspect the project and establish shared contracts.",
-      "tasks": [
-        "Inspect the existing architecture",
-        "Define shared user and session types"
-      ],
-      "sources": [
-        "README.md",
-        "package.json"
-      ],
+      "tasks": ["Inspect the existing architecture", "Define shared user and session types"],
+      "sources": ["README.md", "package.json"],
       "dependsOn": [],
       "completionConditions": [
         {
@@ -481,7 +491,16 @@ while (!graphIsTerminal()) {
 
 Use stable ordering based on order in `loops.json`. Do not use random scheduling.
 
-Independent loops may run simultaneously up to `maxConcurrentLoops`. Version 1 does not require automatic Git merging or mandatory worktrees. Add an adapter capability flag for future isolation:
+When `--plan-conflicts <ratio>` is enabled, the scheduler additionally
+serializes ready loops whose planned write sets overlap. Planned write sets are
+derived deterministically from `loop.sources` and
+`loop.metadata.plannedFiles`; a pair whose Jaccard file overlap exceeds the
+ratio is never started in the same batch. See
+`packages/core/src/planning/conflict.ts`.
+
+Independent loops may run simultaneously up to `maxConcurrentLoops`. Version 1
+does not require automatic Git merging or mandatory worktrees. Add an adapter
+capability flag for future isolation:
 
 ```ts
 supportsIsolatedWorktrees: boolean;
@@ -545,6 +564,27 @@ When a loop completes, write:
 
 Pass only relevant summaries, contracts, artifact paths, completion evidence, and handoff notes to dependent loops. Do not inject full transcripts from dependency loops.
 
+## Isolated Execution and Integration
+
+`--isolated` runs independent loops in isolated Git worktrees so loops do not
+share mutable files. The runtime:
+
+1. Creates one worktree and `loop/<id>` branch per isolated loop under
+   `.loopgraph/workspaces/` (`WorktreeManager`).
+2. Executes each loop against its worktree as the project root.
+3. For a loop marked `metadata.integration: true`, merges completed worker
+   branches into the base branch in dependency order before the loop runs
+   (`IntegrationSupervisor`), so verification checks the combined system.
+4. After the graph finishes, merges any remaining completed branches and
+   removes all worktrees.
+
+Only adapters that report `supportsIsolatedWorktrees: true` participate; the
+interactive session adapter does not, because the active Claude Code session
+cannot be repointed at another directory.
+
+Isolation is opt-in and never changes graph semantics. Without `--isolated`,
+loops run against the shared project root exactly as before.
+
 ## Source Input and Graph Compilation
 
 The user may provide:
@@ -575,6 +615,14 @@ Generated graphs must be saved to `.loopgraph/loops.json` unless the user explic
 
 The core runtime must not require an LLM. Graph compilation from unstructured requirements may use the active harness through an adapter method.
 
+When a project graph provider is configured, compilation becomes
+graph-aware (`packages/cli/src/compiler.ts`): the provider is queried for
+architectural communities, and the compiler emits one substantial loop per
+community plus a final integration loop, scoping each loop's `sources` to the
+bounded relevant files returned for that community. Without a provider, or
+when the provider returns fewer than two communities, compilation falls back to
+the deterministic `foundation` -> `implementation` -> `verification` template.
+
 ## Adapter Interface
 
 Core adapter contract:
@@ -586,14 +634,9 @@ export interface HarnessAdapter {
 
   initialize(context: AdapterInitializationContext): Promise<void>;
 
-  compileGraph?(
-    input: GraphCompilationInput
-  ): Promise<LoopGraph>;
+  compileGraph?(input: GraphCompilationInput): Promise<LoopGraph>;
 
-  executeLoop(
-    request: LoopExecutionRequest,
-    signal: AbortSignal
-  ): Promise<LoopExecutionResult>;
+  executeLoop(request: LoopExecutionRequest, signal: AbortSignal): Promise<LoopExecutionResult>;
 
   cancelLoop?(loopId: string): Promise<void>;
 
@@ -709,9 +752,13 @@ npx graph-engineering-loop run "Build authentication and a dashboard"
 npx graph-engineering-loop run .loopgraph/loops.json
 npx graph-engineering-loop cancel
 npx graph-engineering-loop validate .loopgraph/loops.json
+npx graph-engineering-loop status [--watch]
 ```
 
-Primary public operations are `run` and `cancel`. `validate` and `inspect` may exist as supporting utilities.
+Primary public operations are `run` and `cancel`. `validate`, `inspect`, and
+`status` may exist as supporting utilities. `status` prints the live graph
+projection (every node is a loop) from `.loopgraph/status.json`; `--watch`
+polls until the graph reaches a terminal state.
 
 Practical flags:
 
@@ -722,6 +769,8 @@ Practical flags:
 --project-root <path>
 --dry-run
 --json
+--isolated
+--plan-conflicts <ratio>
 ```
 
 Exit codes:
@@ -802,6 +851,12 @@ Required coverage:
 - Scheduler chains, parallel roots, diamond dependencies, concurrency limits, dependency blocking, cancellation, and iteration exhaustion.
 - Atomic writes, corrupted state recovery, stale locks, resume, graph hash mismatch, and idempotent cancellation.
 - Fake adapter tests for the full runtime without invoking Claude Code.
+- Worktree tests for isolated branch creation, listing, removal, invalid loop
+  ids, dependency-ordered integration plans, and runtime merge-before-verify.
+- Conflict-planning tests for overlap decisions, wave determinism, and
+  scheduler serialization of overlapping ready loops.
+- Graph-aware compilation tests with a fake provider and no-provider fallback.
+- CLI `status` and `status --watch` tests against a completed graph.
 - Integration test where one loop creates a file, a command verifies it, and a dependent loop unlocks.
 - Required isolated plugin smoke for plugin validation, bundled runtime execution, bridge requests, hook context, cancellation, and persisted results.
 - Optional paid Claude smoke for namespaced skill discovery, active-session execution, graph generation, dependency unlock, and persisted results.
@@ -863,6 +918,8 @@ The MVP is complete when:
 - Implement cycle detection.
 - Add unit tests.
 
+Status: implemented.
+
 ### Phase 2: State and Event Persistence
 
 - Implement project-root discovery.
@@ -872,6 +929,8 @@ The MVP is complete when:
 - Implement append-only events.
 - Add recovery tests.
 
+Status: implemented.
+
 ### Phase 3: Scheduler
 
 - Implement loop readiness.
@@ -879,6 +938,8 @@ The MVP is complete when:
 - Implement dependency blocking.
 - Implement terminal graph evaluation.
 - Test with a fake adapter.
+
+Status: implemented, including conflict-aware serialization.
 
 ### Phase 4: Loop Runtime
 
@@ -888,6 +949,8 @@ The MVP is complete when:
 - Implement iteration exhaustion.
 - Add integration tests.
 
+Status: implemented, including isolated worktree execution.
+
 ### Phase 5: CLI
 
 - Implement `run`.
@@ -895,6 +958,9 @@ The MVP is complete when:
 - Add supporting `validate` and `inspect`.
 - Add human and JSON output.
 - Configure NPX executable.
+
+Status: implemented, including `status [--watch]`, `--isolated`, and
+`--plan-conflicts`.
 
 ### Phase 6: Claude Code Adapter
 
@@ -905,6 +971,8 @@ The MVP is complete when:
 - Add only necessary lifecycle hooks.
 - Test project and user installation scopes.
 
+Status: implemented.
+
 ### Phase 7: Graph Compilation
 
 - Accept plain prompts and requirement files.
@@ -914,6 +982,9 @@ The MVP is complete when:
 - Save the final graph.
 - Run it.
 
+Status: implemented, including graph-aware community compilation with a
+deterministic no-provider fallback.
+
 ### Phase 8: Documentation and Release
 
 - Write README.
@@ -922,6 +993,9 @@ The MVP is complete when:
 - Add MIT license.
 - Publish version `0.1.0`.
 - Test installation in a clean sample repository.
+
+Status: implemented; the project dogfoods `.loopgraph/loops.json` through the
+runtime as the durable project backlog.
 
 ## Engineering Quality Requirements
 
@@ -940,6 +1014,7 @@ Use:
 - No swallowed exceptions.
 - Cross-platform path handling.
 - Windows, macOS, and Linux compatibility.
+- ESLint (`npm run lint`) and Prettier (`npm run format:check`) enforced in CI.
 
 Prefer mature, lightweight libraries only where they clearly reduce risk:
 

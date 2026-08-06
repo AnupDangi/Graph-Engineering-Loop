@@ -12,18 +12,24 @@ The core format and runtime are harness-neutral. The first real harness target i
 This is an early `0.2.4` implementation. It includes:
 
 - Version 1 graph validation.
-- Deterministic dependency scheduling.
+- Deterministic dependency scheduling, with optional conflict-aware
+  serialization via `--plan-conflicts <ratio>`.
 - Completion evaluators for commands, file existence, file contents, assertions, and aggregate `all`.
 - Atomic `.loopgraph/state.json` writes.
 - `.loopgraph/lock.json`, `.loopgraph/events.jsonl`, and `.loopgraph/results/`.
 - Generated live `.loopgraph/status.md` graph visualization and `.loopgraph/status.json` status API.
-- CLI commands: `run`, `cancel`, and `validate`.
+- CLI commands: `run`, `cancel`, `validate`, and `status [--watch]`.
 - Deterministic fake adapter for trying the runtime locally.
 - Claude Code headless adapter using `claude -p`.
 - Claude Code interactive adapter that delegates loop work to the active session without nested Claude processes.
 - Generic stdio adapter for any harness wrapper that can read JSON from stdin and write JSON to stdout.
 - Self-contained Claude Code plugin with a vendored runtime, lifecycle hooks, and marketplace metadata.
 - Optional project-graph context providers with durable per-loop context packets.
+- Isolated Git worktree execution via `--isolated`, with supervisor-controlled
+  branch integration before final verification.
+- Graph-aware requirements compilation that turns project communities into
+  loops when a project-graph provider is configured.
+- ESLint and Prettier enforced in CI.
 
 ## Run from source
 

@@ -4,9 +4,37 @@ import { spawn } from "node:child_process";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 const DEFAULT_OUTPUT_LIMIT = 1_000_000;
 const SOURCE_EXTENSIONS = new Set([
-    "c", "cc", "cpp", "cs", "css", "go", "h", "hpp", "html", "java", "js", "json",
-    "jsx", "kt", "md", "mjs", "mts", "php", "py", "rb", "rs", "sh", "sql", "svelte",
-    "swift", "ts", "tsx", "vue", "yaml", "yml", "zig"
+    "c",
+    "cc",
+    "cpp",
+    "cs",
+    "css",
+    "go",
+    "h",
+    "hpp",
+    "html",
+    "java",
+    "js",
+    "json",
+    "jsx",
+    "kt",
+    "md",
+    "mjs",
+    "mts",
+    "php",
+    "py",
+    "rb",
+    "rs",
+    "sh",
+    "sql",
+    "svelte",
+    "swift",
+    "ts",
+    "tsx",
+    "vue",
+    "yaml",
+    "yml",
+    "zig"
 ]);
 export class GraphifyCliProvider {
     options;
@@ -35,9 +63,7 @@ export class GraphifyCliProvider {
             return snapshotForGraph(this.name, graphPath, false, true);
         }
         const incremental = graphExists && options.incremental !== false;
-        const args = incremental
-            ? ["update", "."]
-            : ["extract", ".", "--out", ".", "--code-only"];
+        const args = incremental ? ["update", "."] : ["extract", ".", "--out", ".", "--code-only"];
         await this.runGraphify(args, projectRoot, "build or update the project graph", options.signal);
         return snapshotForGraph(this.name, graphPath, incremental, false);
     }
@@ -46,14 +72,7 @@ export class GraphifyCliProvider {
         const graphPath = this.requireGraphPath();
         await assertPathTargetInsideProject(projectRoot, graphPath);
         const question = buildLoopQuestion(request);
-        const result = await this.runGraphify([
-            "query",
-            question,
-            "--graph",
-            graphPath,
-            "--budget",
-            String(this.options.tokenBudget ?? 2_000)
-        ], projectRoot, `query context for loop '${request.loop.id}'`, signal);
+        const result = await this.runGraphify(["query", question, "--graph", graphPath, "--budget", String(this.options.tokenBudget ?? 2_000)], projectRoot, `query context for loop '${request.loop.id}'`, signal);
         return {
             provider: this.name,
             query: question,
@@ -89,7 +108,7 @@ export class GraphifyCliProvider {
         }
         catch (error) {
             const detail = error instanceof Error ? error.message : String(error);
-            throw new Error(`Graphify could not ${operation}: ${detail}`);
+            throw new Error(`Graphify could not ${operation}: ${detail}`, { cause: error });
         }
         if (result.exitCode !== 0) {
             const detail = result.stderr.trim() || result.stdout.trim() || `exit code ${result.exitCode}`;
@@ -111,12 +130,8 @@ export class GraphifyCliProvider {
     }
 }
 function buildLoopQuestion(request) {
-    const tasks = request.loop.tasks?.length
-        ? ` Tasks: ${request.loop.tasks.join("; ")}.`
-        : "";
-    const sources = request.loop.sources?.length
-        ? ` Known sources: ${request.loop.sources.join(", ")}.`
-        : "";
+    const tasks = request.loop.tasks?.length ? ` Tasks: ${request.loop.tasks.join("; ")}.` : "";
+    const sources = request.loop.sources?.length ? ` Known sources: ${request.loop.sources.join(", ")}.` : "";
     const dependencyFiles = request.dependencyResults.flatMap((result) => result.changedFiles);
     const dependencies = dependencyFiles.length
         ? ` Completed dependencies changed: ${dependencyFiles.join(", ")}.`
@@ -132,9 +147,7 @@ function extractRelevantFiles(output, projectRoot) {
         if (extension === undefined || !SOURCE_EXTENSIONS.has(extension)) {
             continue;
         }
-        const absolutePath = isAbsolute(withoutLine)
-            ? resolve(withoutLine)
-            : resolve(projectRoot, withoutLine);
+        const absolutePath = isAbsolute(withoutLine) ? resolve(withoutLine) : resolve(projectRoot, withoutLine);
         const relativePath = relative(projectRoot, absolutePath);
         if (relativePath !== "" && relativePath !== ".." && !relativePath.startsWith(`..${sep}`)) {
             files.add(relativePath);

@@ -14,7 +14,7 @@ export class FakeAdapter implements HarnessAdapter {
     supportsSubagents: false,
     supportsResume: false,
     supportsStructuredOutput: true,
-    supportsIsolatedWorktrees: false
+    supportsIsolatedWorktrees: true
   };
 
   async initialize(_context: AdapterInitializationContext): Promise<void> {

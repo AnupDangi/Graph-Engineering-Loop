@@ -102,18 +102,18 @@ test("Graphify CLI provider rejects graph symlinks outside the project", async (
 
   await provider.initialize(projectRoot);
 
-  await assert.rejects(
-    provider.ensureCurrent(),
-    /Graphify graph path resolves outside the project root/
-  );
+  await assert.rejects(provider.ensureCurrent(), /Graphify graph path resolves outside the project root/);
 });
 
 test("Graphify CLI provider forwards cancellation to command execution", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "loopgraph-graphify-cancel-"));
   const provider = new GraphifyCliProvider({
-    commandRunner: async (_command, _args, _cwd, options) => new Promise((_resolve, reject) => {
-      options.signal?.addEventListener("abort", () => reject(new Error("cancelled by test")), { once: true });
-    })
+    commandRunner: async (_command, _args, _cwd, options) =>
+      new Promise((_resolve, reject) => {
+        options.signal?.addEventListener("abort", () => reject(new Error("cancelled by test")), {
+          once: true
+        });
+      })
   });
   const abortController = new AbortController();
 

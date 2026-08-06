@@ -1,6 +1,6 @@
 {
   "name": "gel-monorepo",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -21,11 +21,21 @@
     "smoke:fake": "npm run build && node packages/cli/dist/cli.js run examples/fake/loops.json --adapter fake",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "test": "node --test --import tsx tests/**/*.test.ts",
-    "typecheck": "tsc -b packages/core packages/cli --pretty false && tsc -b packages/core packages/cli --clean"
+    "typecheck": "tsc -b packages/core packages/cli --pretty false",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"packages/**/*.{ts,js}\" \"tests/**/*.ts\" \"scripts/**/*.mjs\" \"*.{json,mjs,md}\"",
+    "format:check": "prettier --check \"packages/**/*.{ts,js}\" \"tests/**/*.ts\" \"scripts/**/*.mjs\""
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.66.0"
   }
 }
