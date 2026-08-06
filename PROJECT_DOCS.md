@@ -111,8 +111,9 @@ Do not implement every adapter in the MVP. Claude Code is the first supported ad
 
 Current package names:
 
-- CLI package: `graph-engineering-loop`
+- CLI package (npm install): `graph-engineering-loop-workspace`
 - Core package: `graph-engineering-loop-core`
+- Private monorepo root: `gel-monorepo` (never published)
 
 The CLI also exposes a compatibility binary named `loopgraph`.
 
